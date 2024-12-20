@@ -11,7 +11,6 @@ from copy import deepcopy
 import numpy as np
 import pywt
 import torch
-import pdb
 
 
 class Visualizer:
@@ -115,7 +114,8 @@ class SpectrogramVisualizer(Visualizer):
                 nfft=self.nfft,
                 return_onesided=False,
             )
-            spectrogram = 20 * np.log10(np.fft.fftshift(np.abs(spectrogram), axes=0))
+            spectrogram = 20 * \
+                np.log10(np.fft.fftshift(np.abs(spectrogram), axes=0))
             plt.imshow(
                 spectrogram,
                 vmin=np.min(spectrogram[spectrogram != -np.inf]),
@@ -171,7 +171,7 @@ class WaveletVisualizer(Visualizer):
             scales = np.arange(1, self.nscales)
 
             if torch.is_tensor(iq_data):
-                iq_data = iq_data.numpy() 
+                iq_data = iq_data.numpy()
 
             cwt_matrix, freqs = pywt.cwt(
                 iq_data[sample_idx],
@@ -215,7 +215,8 @@ class ConstellationVisualizer(Visualizer):
                 int(np.sqrt(batch_size)),
                 sample_idx + 1,
             )
-            plt.scatter(np.real(iq_data[sample_idx]), np.imag(iq_data[sample_idx]))
+            plt.scatter(np.real(iq_data[sample_idx]),
+                        np.imag(iq_data[sample_idx]))
             plt.xticks([])
             plt.yticks([])
             plt.title(str(targets[sample_idx]))
@@ -301,7 +302,7 @@ class ImageVisualizer(Visualizer):
             )
 
             if torch.is_tensor(data):
-                data = data.numpy() 
+                data = data.numpy()
 
             plt.imshow(
                 data[sample_idx],
@@ -421,7 +422,8 @@ class MaskClassVisualizer(Visualizer):
             iq_data = self.visualize_transform(deepcopy(iq_data))
 
         if self.visualize_target_transform:
-            classes, targets = self.visualize_target_transform(deepcopy(targets))
+            classes, targets = self.visualize_target_transform(
+                deepcopy(targets))
         else:
             targets = None
 
@@ -511,14 +513,16 @@ class SemanticMaskClassVisualizer(Visualizer):
             )
             title = []
             if targets is not None:
-                mask = np.ma.masked_where(targets[sample_idx] < 1, targets[sample_idx])
+                mask = np.ma.masked_where(
+                    targets[sample_idx] < 1, targets[sample_idx])
                 mask_img = plt.imshow(
                     mask,
                     alpha=0.5,
                     interpolation="none",
                     extent=extent,
                 )
-                classes_present = list(set(targets[sample_idx].flatten().tolist()))
+                classes_present = list(
+                    set(targets[sample_idx].flatten().tolist()))
                 classes_present.remove(0.0)  # Remove 'background' class
                 title = [
                     self.class_list[int(class_idx - 1)] for class_idx in classes_present
@@ -612,7 +616,7 @@ class BoundingBoxVisualizer(Visualizer):
                             (start_pixel, low_freq),
                             duration,
                             bandwidth,  # Bandwidth (pixels)
-                            linewidth=3,
+                            linewidth=2,
                             edgecolor="b",
                             facecolor="none",
                         )
@@ -689,7 +693,8 @@ class AnchorBoxVisualizer(Visualizer):
                 for grid_cell_y_idx in range(label.shape[1]):
                     for anchor_idx in range(self.num_anchor_boxes):
                         if (
-                            label[grid_cell_x_idx, grid_cell_y_idx, 0 + 5 * anchor_idx]
+                            label[grid_cell_x_idx, grid_cell_y_idx,
+                                  0 + 5 * anchor_idx]
                             == 1
                         ):
                             duration = (
@@ -792,7 +797,8 @@ def complex_spectrogram_to_magnitude(tensor: np.ndarray) -> np.ndarray:
         (batch_size, tensor.shape[2], tensor.shape[3]), dtype=np.float64
     )
     for idx in range(tensor.shape[0]):
-        new_tensor[idx] = 20 * np.log10(tensor[idx, 0] ** 2 + tensor[idx, 1] ** 2)
+        new_tensor[idx] = 20 * \
+            np.log10(tensor[idx, 0] ** 2 + tensor[idx, 1] ** 2)
     return new_tensor
 
 
@@ -937,10 +943,12 @@ def mask_class_to_outline(tensor: np.ndarray) -> Tuple[List[List[int]], List[Any
         for individual_burst_idx in range(label.shape[0]):
             if np.count_nonzero(label[individual_burst_idx]) > 0:
                 class_idx_curr.append(individual_burst_idx)
-            label[individual_burst_idx] = label[individual_burst_idx] - ndimage.binary_erosion(label[individual_burst_idx])
+            label[individual_burst_idx] = label[individual_burst_idx] - \
+                ndimage.binary_erosion(label[individual_burst_idx])
         label = np.sum(label, axis=0)
         label[label > 0] = 1
-        label = ndimage.binary_dilation(label, structure=struct, iterations=2).astype(label.dtype)
+        label = ndimage.binary_dilation(
+            label, structure=struct, iterations=2).astype(label.dtype)
         label = np.ma.masked_where(label == 0, label)
         class_idx.append(class_idx_curr)
         labels.append(label)
