@@ -52,16 +52,13 @@ class TorchSigWideband:
         self.T = transform if transform else Identity()
         self.TT = target_transform if target_transform else Identity()
 
-        cfg = ("Wideband" + ("Impaired" if impaired else "Clean") + ("Train" if train else "Val") + "Config")
+        cfg = ("Wideband" + ("Impaired" if impaired else "Clean") +
+               ("Train" if train else "Val") + "Config")
         cfg = getattr(conf, cfg)()
 
         self.path = self.root / cfg.name  # type: ignore
-        self.env = lmdb.open(str(self.path), map_size=int(1e12), max_dbs=2, readonly=True, lock=False, readahead=False)
-        self.data_db = self.env.open_db(b"data")
-        self.label_db = self.env.open_db(b"label")
-        
-        with self.env.begin(db=self.data_db, write=False) as data_txn:
-            self.length = data_txn.stat()["entries"]
+       # Initialize LMDB
+        self._init_lmdb()
 
     def __len__(self) -> int:
         return self.length
@@ -70,7 +67,7 @@ class TorchSigWideband:
         encoded_idx = pickle.dumps(idx)
         with self.env.begin(db=self.data_db, write=False) as data_txn:
             iq_data = pickle.loads(data_txn.get(encoded_idx))
-        
+
         with self.env.begin(db=self.label_db, write=False) as label_txn:
             label = pickle.loads(label_txn.get(encoded_idx))
 
@@ -78,9 +75,40 @@ class TorchSigWideband:
 
     def __getitem__(self, idx: int) -> tuple:
         iq_data, label = self._get_data_label(idx)
-        
-        signal = Signal(data=create_signal_data(samples=iq_data), metadata=(label))
+
+        signal = Signal(data=create_signal_data(
+            samples=iq_data), metadata=(label))
         signal = self.T(signal)  # type: ignore
         target = self.TT(signal["metadata"])  # type: ignore
-        
+
         return signal["data"]["samples"], target
+
+    def _init_lmdb(self):
+        """Initialize LMDB environment - called in __init__ and after unpickling"""
+        self.env = lmdb.open(str(self.path),
+                             map_size=int(1e12),
+                             max_dbs=2,
+                             readonly=True,
+                             lock=False,
+                             readahead=False)
+        self.data_db = self.env.open_db(b"data")
+        self.label_db = self.env.open_db(b"label")
+
+        with self.env.begin(db=self.data_db, write=False) as data_txn:
+            self.length = data_txn.stat()["entries"]
+
+    def __getstate__(self):
+        """Return picklable state"""
+        state = self.__dict__.copy()
+        # Remove LMDB environment
+        del state['env']
+        del state['data_db']
+        del state['label_db']
+        return state
+
+    def __setstate__(self, state):
+        """Restore from pickle"""
+        self.__dict__.update(state)
+        # Reopen LMDB in new process
+        self._init_lmdb()
+        self.label_db = self.env.open_db(b"label")

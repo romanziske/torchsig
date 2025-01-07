@@ -769,6 +769,103 @@ class AnchorBoxVisualizer(Visualizer):
         return figure
 
 
+class YOLOBoundingBoxVisualizer(Visualizer):
+    """Visualize spectrograms with YOLO format bounding boxes
+
+    YOLO format: [x_center, y_center, width, height] (normalized 0-1)
+    """
+
+    def __init__(
+        self,
+        data_loader,
+        visualize_transform: Optional[Callable] = None,
+        visualize_target_transform: Optional[Callable] = None,
+        class_names: Optional[list] = None
+    ) -> None:
+        super().__init__(data_loader, visualize_transform, visualize_target_transform)
+        self.class_names = class_names
+
+    def __next__(self) -> Figure:
+        batch = next(self.data_iter)
+
+        if self.visualize_transform:
+            iq_data = self.visualize_transform(deepcopy(batch[0]))
+
+        targets = batch[1]
+
+        return self._visualize(iq_data, targets)
+
+    def _visualize(self, data: np.ndarray, targets: List[dict]) -> Figure:
+        batch_size = data.shape[0]
+        figure = plt.figure(frameon=False)
+
+        for sample_idx in range(batch_size):
+
+            ax = plt.subplot(
+                int(np.ceil(np.sqrt(batch_size))),
+                int(np.sqrt(batch_size)),
+                sample_idx + 1,
+            )
+
+            # Plot spectrogram
+            ax.imshow(
+                data[sample_idx],
+                aspect='auto',
+                cmap='jet',
+                vmin=np.min(data[sample_idx]),
+                vmax=np.max(data[sample_idx])
+            )
+
+            # Get image dimensions
+            height, width = data[sample_idx].shape
+
+            # Draw YOLO boxes
+            if targets is not None and targets[sample_idx] is not None:
+                target = targets[sample_idx]
+                boxes = target['boxes']  # Should be tensor of shape [N, 4]
+                labels = target['labels']  # Should be tensor of shape [N]
+
+                if isinstance(boxes, torch.Tensor):
+                    boxes = boxes.cpu().numpy()
+
+                for idx, box in enumerate(boxes):
+                    # YOLO format to pixel coordinates
+                    x_center, y_center = box[0] * width, box[1] * height
+                    box_width, box_height = box[2] * width, box[3] * height
+
+                    # Convert to top-left corner
+                    x = x_center - box_width/2
+                    y = y_center - box_height/2
+
+                    # Create rectangle
+                    rect = patches.Rectangle(
+                        (x, y),
+                        box_width,
+                        box_height,
+                        linewidth=2,
+                        edgecolor='b',
+                        facecolor='none'
+                    )
+                    ax.add_patch(rect)
+
+                    # Add class label
+                    if self.class_names and labels is not None:
+                        class_idx = labels[idx].item() if torch.is_tensor(
+                            labels) else labels[idx]
+                        if class_idx < len(self.class_names):
+                            plt.text(
+                                x, y-2,
+                                self.class_names[class_idx],
+                                color='white',
+                                bbox=dict(facecolor='red', alpha=0.5)
+                            )
+
+            plt.xticks([])
+            plt.yticks([])
+            plt.title(f"Sample {sample_idx+1}")
+
+        return figure
+
 ###############################################################################
 # Visualizer Transform Functions
 ###############################################################################

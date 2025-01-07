@@ -6,6 +6,7 @@ from copy import deepcopy
 import numpy as np
 import torch
 
+
 def collate_fn(batch):
     return tuple(zip(*batch))
 
@@ -70,7 +71,8 @@ class SignalFileDataset(SignalDataset):
         root: str,
         indexer: Callable[[str], List[Tuple[Any, SignalCapture]]],
         reader: Callable[[SignalCapture], SignalData],
-        index_filter: Optional[Callable[[Tuple[Any, SignalCapture]], bool]] = None,
+        index_filter: Optional[Callable[[
+            Tuple[Any, SignalCapture]], bool]] = None,
         **kwargs,
     ):
         super(SignalFileDataset, self).__init__(**kwargs)
@@ -124,7 +126,8 @@ class SignalTensorDataset(torch.utils.data.TensorDataset):
         self.transform = transform
         self.target_transform = target_transform
 
-    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:  # type: ignore
+    # type: ignore
+    def __getitem__(self, index: int) -> Tuple[SignalData, Any]:
         # We assume that single-precision Tensors are provided we return
         # double-precision numpy arrays for usage in the transform pipeline.
         signal_data = SignalData(
@@ -134,7 +137,8 @@ class SignalTensorDataset(torch.utils.data.TensorDataset):
             if self.tensors[0].dtype == torch.float
             else np.dtype(np.complex128),
         )
-        target = tuple(self.tensors[idx][index] for idx in range(1, len(self.tensors)))
+        target = tuple(self.tensors[idx][index]
+                       for idx in range(1, len(self.tensors)))
 
         if self.transform:
             signal_data = self.transform(signal_data)
