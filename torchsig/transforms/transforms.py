@@ -1,7 +1,10 @@
 """Signal Transforms on data/IQ
 """
 
-from typing import Any, Callable, List, Literal, Optional, Tuple, Union
+import json
+from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple, Union
+
+import torch
 from torchsig.transforms import functional as F
 from torchsig.transforms.functional import (
     FloatParameter,
@@ -12,12 +15,11 @@ from torchsig.transforms.functional import (
 )
 from torchsig.utils.dataset import SignalDataset
 from torchsig.utils.types import *
-from torchsig.utils.dsp import low_pass, MAX_SIGNAL_UPPER_EDGE_FREQ, MAX_SIGNAL_LOWER_EDGE_FREQ
+from torchsig.utils.dsp import MAX_SIGNAL_UPPER_EDGE_FREQ, MAX_SIGNAL_LOWER_EDGE_FREQ
 from scipy import signal as sp
 from copy import deepcopy
 import numpy as np
 import warnings
-import copy
 
 from torchsig.utils.types import Signal
 
@@ -25,6 +27,7 @@ from torchsig.utils.types import Signal
 __all__ = [
     "Transform",
     "Compose",
+    "MultiViewTransform",
     "Identity",
     "Lambda",
     "FixedRandom",
@@ -44,6 +47,7 @@ __all__ = [
     "RandomPhaseShift",
     "InterleaveComplex",
     "ComplexTo2D",
+    "ToTensor",
     "Real",
     "Imag",
     "ComplexMagnitude",
@@ -57,6 +61,7 @@ __all__ = [
     "TimeCrop",
     "TimeReversal",
     "AmplitudeReversal",
+    "AmplitudeScale",
     "RandomFrequencyShift",
     "RandomDelayedFrequencyShift",
     "LocalOscillatorDrift",
@@ -92,6 +97,7 @@ def find_nearest(array, value):
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     return array[idx]
+
 
 class Transform:
     """An abstract class representing a Transform that can either work on
@@ -138,6 +144,37 @@ class Compose(Transform):
 
     def __repr__(self) -> str:
         return "\n".join([str(t) for t in self.transforms])
+
+
+class MultiViewTransform(Transform):
+    """Transforms an signal into multiple views.
+
+    Args:
+        transforms:
+            A sequence of transforms. Every transform creates a new view.
+
+    """
+
+    def __init__(self, transforms: Sequence[Compose]) -> None:
+        super().__init__()
+        self.transforms = transforms
+
+    def __call__(self, data: Any) -> Any:
+        """Creates independent views with separate data copies"""
+        views = []
+        for transform in self.transforms:
+            # Create fresh copy for each transform pipeline
+            data_copy = deepcopy(data)
+            views.append(transform(data_copy))
+        return views
+
+    def __repr__(self) -> str:
+        format_string = self.__class__.__name__ + "("
+        for t in self.transforms:
+            format_string += "\n"
+            format_string += f"    {t}"
+        format_string += "\n)"
+        return format_string
 
 
 class Identity(Transform):
@@ -210,10 +247,12 @@ class FixedRandom(Transform):
         seed = self.random_generator.choice(self.num_seeds)
         orig_state = (
             np.random.get_state()
-        )  # we do not want to somehow fix other random number generation processes.
+            # we do not want to somehow fix other random number generation processes.
+        )
         np.random.seed(seed)
         data = self.transform(data)
-        np.random.set_state(orig_state)  # return numpy back to its previous state
+        # return numpy back to its previous state
+        np.random.set_state(orig_state)
         return data
 
 
@@ -294,13 +333,13 @@ class SignalTransform(Transform):
     def convert_to_signal(self, signal: Any) -> Signal:
         if is_signal(signal):
             return signal
-        metadata_list = [create_modulated_rf_metadata(**vals) for vals in signal["metadata"]]        
+        metadata_list = [create_modulated_rf_metadata(
+            **vals) for vals in signal["metadata"]]
         return create_signal(
             data=create_signal_data(samples=signal["data"]["samples"]),
             metadata=metadata_list
         )
 
-    
     def parameters(self) -> tuple:
         return tuple()
 
@@ -432,11 +471,13 @@ class RandChoice(SignalTransform):
         transforms: List[SignalTransform],
         probabilities: Optional[np.ndarray] = None,
         **kwargs,
-    ) -> None:  
+    ) -> None:
         super(RandChoice, self).__init__(**kwargs)
         self.transforms = transforms
-        probabilities = probabilities if isinstance(probabilities, np.ndarray) else np.array(probabilities)
-        self.probabilities = np.ones(len(self.transforms)) / len(self.transforms) if probabilities is None else probabilities
+        probabilities = probabilities if isinstance(
+            probabilities, np.ndarray) else np.array(probabilities)
+        self.probabilities = np.ones(len(
+            self.transforms)) / len(self.transforms) if probabilities is None else probabilities
 
         if np.sum(self.probabilities) != 1.0:
             self.probabilities /= np.sum(self.probabilities)
@@ -553,7 +594,8 @@ class RandomResample(SignalTransform):
         min_time: float = .05,
     ) -> None:
         super(RandomResample, self).__init__()
-        self.rate_ratio: Callable = to_distribution(rate_ratio, self.random_generator)
+        self.rate_ratio: Callable = to_distribution(
+            rate_ratio, self.random_generator)
         self.num_iq_samples = num_iq_samples
         self.keep_samples = keep_samples
         self.min_time = min_time
@@ -569,12 +611,11 @@ class RandomResample(SignalTransform):
     def __call__(self, signal: Signal) -> Signal:
 
         parameters = None
-        
+
         # check in bounds within 10 tries
         for i in range(10):
             parameters = self.parameters()
             new_rate = self.check_time_freq_bounds(signal, parameters[0])
-
 
         # could not fit in 10 tries, don't resample
         new_rate = [1.] if new_rate == -1 else [new_rate]
@@ -596,7 +637,7 @@ class RandomResample(SignalTransform):
 
         Returns:
             new_rate: Resampling rate that keeps signal in bounds.
-        """        
+        """
         # we assume original signal is within bounds
         assert meta["lower_freq"] is not None
         assert meta["upper_freq"] is not None
@@ -607,9 +648,9 @@ class RandomResample(SignalTransform):
         test_lf = meta["lower_freq"] / try_new_rate
         test_hf = meta["upper_freq"] / try_new_rate
 
-        if test_lf < MAX_SIGNAL_LOWER_EDGE_FREQ or test_hf > MAX_SIGNAL_UPPER_EDGE_FREQ: # out of bounds
+        if test_lf < MAX_SIGNAL_LOWER_EDGE_FREQ or test_hf > MAX_SIGNAL_UPPER_EDGE_FREQ:  # out of bounds
             new_rate *= 2
-        
+
         return new_rate
 
     def check_time_freq_bounds(self, signal: Signal, new_rate: float) -> float:
@@ -622,9 +663,9 @@ class RandomResample(SignalTransform):
 
         Returns:
             float: New rate to resample Signal, within bounds.
-        """        
+        """
         ret_list = []
-        
+
         for meta in signal["metadata"]:
             new_rate = self.check_bounds(meta, new_rate)
             ret_list.append(new_rate)
@@ -633,23 +674,24 @@ class RandomResample(SignalTransform):
             new_rate = np.max(ret_list)
         except Exception as error:
             for meta in signal['metadata']:
-                print(f"{meta['lower_freq']} {meta['upper_freq']} {meta['class_name']}")
+                print(f"{meta['lower_freq']} {
+                      meta['upper_freq']} {meta['class_name']}")
             print(error)
             raise ValueError("Unable to run: new_rate = np.max(ret_list)")
-        
+
         for meta in signal["metadata"]:
             start = meta["start"] * new_rate
             if start > 1 - self.min_time:
                 return -1
-                    
-        return new_rate
 
+        return new_rate
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         if not has_rf_metadata(signal["metadata"]):
             return signal
         # Apply transform to data
-        signal["data"]["samples"] = F.resample(signal["data"]["samples"], params[0], self.num_iq_samples, self.keep_samples)
+        signal["data"]["samples"] = F.resample(
+            signal["data"]["samples"], params[0], self.num_iq_samples, self.keep_samples)
 
         return signal
 
@@ -685,6 +727,7 @@ class RandomResample(SignalTransform):
         #     signal["data"]["samples"] = convolve_out[lidx:ridx]
 
         return signal
+
 
 class TargetSNR(SignalTransform):
     """Adds zero-mean complex additive white Gaussian noise to a provided
@@ -738,11 +781,13 @@ class TargetSNR(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         target_snr_db: float = params[0]
-        signal_power_db = 10 * np.log10(np.mean(np.abs(signal["data"]["samples"]) ** 2, axis=0))
+        signal_power_db = 10 * \
+            np.log10(np.mean(np.abs(signal["data"]["samples"]) ** 2, axis=0))
         noise_power_db = signal_power_db - target_snr_db
 
         if not has_modulated_rf_metadata(signal["metadata"]):
-            signal["data"]["samples"] = F.awgn(signal["data"]["samples"], noise_power_db)
+            signal["data"]["samples"] = F.awgn(
+                signal["data"]["samples"], noise_power_db)
             return signal
 
         if "ofdm" not in signal["metadata"][0]["class_name"]:
@@ -754,9 +799,11 @@ class TargetSNR(SignalTransform):
             )
 
         if signal["metadata"][0]["samples_per_symbol"] > 0:
-            noise_power_db += 10 * np.log10(signal["metadata"][0]["samples_per_symbol"])
+            noise_power_db += 10 * \
+                np.log10(signal["metadata"][0]["samples_per_symbol"])
 
-        signal["data"]["samples"] = F.awgn(signal["data"]["samples"], noise_power_db)
+        signal["data"]["samples"] = F.awgn(
+            signal["data"]["samples"], noise_power_db)
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
@@ -809,7 +856,8 @@ class AddNoise(SignalTransform):
         **kwargs,
     ) -> None:
         super(AddNoise, self).__init__(**kwargs)
-        self.noise_power_db = to_distribution(noise_power_db, self.random_generator)
+        self.noise_power_db = to_distribution(
+            noise_power_db, self.random_generator)
         self.input_noise_floor_db = input_noise_floor_db
         self.string = (
             self.__class__.__name__
@@ -824,7 +872,8 @@ class AddNoise(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         noise_power_db, _ = params
-        signal["data"]["samples"] = F.awgn(signal["data"]["samples"], noise_power_db)
+        signal["data"]["samples"] = F.awgn(
+            signal["data"]["samples"], noise_power_db)
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
@@ -833,7 +882,8 @@ class AddNoise(SignalTransform):
 
         noise_power_db, noise_floor_db = params
         for meta in signal["metadata"]:
-            meta["snr"] = (meta["snr"] - noise_power_db) if noise_power_db > noise_floor_db else meta["snr"]
+            meta["snr"] = (
+                meta["snr"] - noise_power_db) if noise_power_db > noise_floor_db else meta["snr"]
         return signal
 
 
@@ -893,7 +943,8 @@ class TimeVaryingNoise(SignalTransform):
             noise_power_db_high, self.random_generator
         )
         self.inflections = to_distribution(inflections, self.random_generator)
-        self.random_regions = to_distribution(random_regions, self.random_generator)
+        self.random_regions = to_distribution(
+            random_regions, self.random_generator)
         self.string = (
             self.__class__.__name__
             + "("
@@ -928,9 +979,11 @@ class TimeVaryingNoise(SignalTransform):
             return signal
 
         noise_power_db_low, noise_power_db_high, _, _ = params
-        noise_power_db_change = np.abs(noise_power_db_high - noise_power_db_low)
+        noise_power_db_change = np.abs(
+            noise_power_db_high - noise_power_db_low)
         avg_noise_power_db = (
-            min(noise_power_db_low, noise_power_db_high) + noise_power_db_change / 2
+            min(noise_power_db_low, noise_power_db_high) +
+            noise_power_db_change / 2
         )
         for meta in signal["metadata"]:
             meta["snr"] -= avg_noise_power_db
@@ -981,7 +1034,8 @@ class RayleighFadingChannel(SignalTransform):
         **kwargs,
     ) -> None:
         super(RayleighFadingChannel, self).__init__(**kwargs)
-        self.coherence_bandwidth = to_distribution(coherence_bandwidth, self.random_generator)
+        self.coherence_bandwidth = to_distribution(
+            coherence_bandwidth, self.random_generator)
         self.power_delay_profile = np.asarray(power_delay_profile)
         self.string = (
             self.__class__.__name__
@@ -1028,7 +1082,8 @@ class ImpulseInterferer(SignalTransform):
     ) -> None:
         super(ImpulseInterferer, self).__init__(**kwargs)
         self.amp = to_distribution(amp, self.random_generator)
-        self.pulse_offset = to_distribution(pulse_offset, self.random_generator)
+        self.pulse_offset = to_distribution(
+            pulse_offset, self.random_generator)
         self.string = (
             self.__class__.__name__
             + "("
@@ -1079,8 +1134,10 @@ class RandomPhaseShift(SignalTransform):
         **kwargs,
     ) -> None:
         super(RandomPhaseShift, self).__init__(**kwargs)
-        self.phase_offset = to_distribution(phase_offset, self.random_generator)
-        self.string = self.__class__.__name__ + "(" + "phase_offset={}".format(phase_offset) + ")"
+        self.phase_offset = to_distribution(
+            phase_offset, self.random_generator)
+        self.string = self.__class__.__name__ + \
+            "(" + "phase_offset={}".format(phase_offset) + ")"
 
     def parameters(self) -> tuple:
         return (self.phase_offset(),)
@@ -1090,6 +1147,7 @@ class RandomPhaseShift(SignalTransform):
         signal["data"]["samples"] = F.phase_offset(
             signal["data"]["samples"], phase_offset * np.pi
         )
+
         return signal
 
 
@@ -1104,7 +1162,8 @@ class InterleaveComplex(SignalTransform):
     """
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        signal["data"]["samples"] = F.interleave_complex(signal["data"]["samples"])
+        signal["data"]["samples"] = F.interleave_complex(
+            signal["data"]["samples"])
         return signal
 
 
@@ -1120,6 +1179,23 @@ class ComplexTo2D(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         signal["data"]["samples"] = F.complex_to_2d(signal["data"]["samples"])
+        return signal
+
+
+class ToTensor(SignalTransform):
+    """Converts a numpy array to a PyTorch tensor.
+
+    Example:
+        >>> import torchsig.transforms as ST
+        >>> transform = ST.ToTensor()
+
+    """
+
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        # Convert to float32 for MPS compatibility
+        signal["data"]["samples"] = torch.from_numpy(
+            signal["data"]["samples"].astype(np.float32)
+        )
         return signal
 
 
@@ -1161,7 +1237,8 @@ class ComplexMagnitude(SignalTransform):
     """
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        signal["data"]["samples"] = F.complex_magnitude(signal["data"]["samples"])
+        signal["data"]["samples"] = F.complex_magnitude(
+            signal["data"]["samples"])
         return signal
 
 
@@ -1214,6 +1291,7 @@ class ChannelConcatIQDFT(SignalTransform):
         dft_data = F.complex_to_2d(dft_data)
         signal["data"]["samples"] = np.concatenate([iq_data, dft_data], axis=0)
         return signal
+
 
 class Spectrogram(SignalTransform):
     """Calculates power spectral density over time
@@ -1312,15 +1390,15 @@ class Spectrogram(SignalTransform):
         if self.mode != "complex":
             return signal
 
-        new_tensor = np.zeros((2, data_shape(signal["data"])[0], signal["data"]["samples"].shape[1]),)
+        new_tensor = np.zeros((2, data_shape(signal["data"])[
+                              0], signal["data"]["samples"].shape[1]),)
         new_tensor[0, :, :] = F.real(signal["data"]["samples"])
         new_tensor[1, :, :] = F.imag(signal["data"]["samples"])
         signal["data"]["samples"] = new_tensor
         return signal
-    
-    def transform_meta(self, signal: Signal, params: Tuple) -> Signal:
-        return signal 
 
+    def transform_meta(self, signal: Signal, params: Tuple) -> Signal:
+        return signal
 
 
 class ContinuousWavelet(SignalTransform):
@@ -1386,11 +1464,13 @@ class ReshapeTransform(SignalTransform):
         super(ReshapeTransform, self).__init__(**kwargs)
         self.new_shape = new_shape
         self.string = (
-            self.__class__.__name__ + "(" + "new_shape={}".format(new_shape) + ")"
+            self.__class__.__name__ +
+            "(" + "new_shape={}".format(new_shape) + ")"
         )
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        signal["data"]["samples"] = signal["data"]["samples"].reshape(*self.new_shape)
+        signal["data"]["samples"] = signal["data"]["samples"].reshape(
+            *self.new_shape)
         return signal
 
 
@@ -1442,7 +1522,8 @@ class RandomTimeShift(SignalTransform):
         num_taps = int(taps_per_arm * interp_rate)
 
         self.taps = (
-            sp.firwin(num_taps, 1.0 / interp_rate, width=1.0 / (interp_rate / 4.0), scale=True)
+            sp.firwin(num_taps, 1.0 / interp_rate, width=1.0 /
+                      (interp_rate / 4.0), scale=True)
             * interp_rate
         )
         self.string = (
@@ -1456,7 +1537,7 @@ class RandomTimeShift(SignalTransform):
 
     def parameters(self) -> tuple:
         return (float(self.shift()),)
-    
+
     def check_time_bounds(self, signal: Signal, params: tuple) -> float:
         """
             Method checks new start and stop times to ensure signal is not cropped out
@@ -1470,23 +1551,27 @@ class RandomTimeShift(SignalTransform):
             temp_stop = meta["stop"] + shift / data_shape(signal["data"])[0]
             if temp_start > 1. or temp_stop < 0.:
                 if temp_start > 1.:
-                    new_shift = (1 - self.min_time - meta["start"]) * data_shape(signal["data"])[0]
+                    new_shift = (1 - self.min_time -
+                                 meta["start"]) * data_shape(signal["data"])[0]
                     start_shift_list.append(new_shift)
                 else:
-                    new_shift = (1 - self.min_time - meta["stop"]) * data_shape(signal["data"])[0]
+                    new_shift = (1 - self.min_time -
+                                 meta["stop"]) * data_shape(signal["data"])[0]
                     stop_shift_list.append(new_shift)
             else:
                 start_shift_list.append(shift)
                 stop_shift_list.append(shift)
-        
+
         if len(start_shift_list) == 0:
             start_shift_list = stop_shift_list
-        
+
         if len(stop_shift_list) == 0:
             stop_shift_list = start_shift_list
         try:
-            min_shift = np.max((np.min(start_shift_list), np.min(stop_shift_list)))
-            max_shift = np.min((np.max(start_shift_list), np.max(stop_shift_list)))
+            min_shift = np.max(
+                (np.min(start_shift_list), np.min(stop_shift_list)))
+            max_shift = np.min(
+                (np.max(start_shift_list), np.max(stop_shift_list)))
         except:
             breakpoint()
 
@@ -1496,16 +1581,19 @@ class RandomTimeShift(SignalTransform):
         params_new = self.check_time_bounds(signal, params)
         integer_part, decimal_part = divmod(params_new[0], 1)
         integer_time_shift: int = int(integer_part) if integer_part else 0
-        float_decimal_part: float = float(decimal_part) if decimal_part else 0.0
+        """     float_decimal_part: float = float(
+            decimal_part) if decimal_part else 0.0
         # Apply data transformation
         if float_decimal_part != 0:
             signal["data"]["samples"] = F.fractional_shift(
                 signal["data"]["samples"],
                 self.taps,
                 self.interp_rate,
-                -float_decimal_part,  # this needed to be negated to be consistent with the previous implementation
-            )
-        signal["data"]["samples"] = F.time_shift(signal["data"]["samples"], integer_time_shift)
+                # this needed to be negated to be consistent with the previous implementation
+                -float_decimal_part,
+            ) """
+        signal["data"]["samples"] = F.time_shift(
+            signal["data"]["samples"], integer_time_shift)
 
         return signal
 
@@ -1521,14 +1609,16 @@ class RandomTimeShift(SignalTransform):
             meta["start"] = np.clip(meta["start"], a_min=0.0, a_max=1.0)
             meta["stop"] = np.clip(meta["stop"], a_min=0.0, a_max=1.0)
             meta["duration"] = meta["stop"] - meta["start"]
-            meta["num_samples"] = int(meta["duration"] * len(signal["data"]["samples"]))
+            meta["num_samples"] = int(
+                meta["duration"] * len(signal["data"]["samples"]))
 
-        signal["metadata"] = [value for value in signal["metadata"] if value["duration"] > 0.]
+        signal["metadata"] = [
+            value for value in signal["metadata"] if value["duration"] > 0.]
         if len(signal["metadata"]) == 0:
             print("empty metadata!!!")
 
         return signal
-        
+
 
 class TimeCrop(SignalTransform):
     """Crops a tensor in the time dimension to the specified length. Optional
@@ -1570,7 +1660,8 @@ class TimeCrop(SignalTransform):
         self.crop_length = crop_length
         self.signal_length = signal_length
         if self.crop_type not in ("start", "center", "end", "random"):
-            raise ValueError("Crop type must be: `start`, `center`, `end`, or `random`")
+            raise ValueError(
+                "Crop type must be: `start`, `center`, `end`, or `random`")
 
         self.string = (
             self.__class__.__name__
@@ -1591,7 +1682,7 @@ class TimeCrop(SignalTransform):
             start = np.random.randint(0, self.signal_length - self.crop_length)
 
         return start, self.crop_length
-    
+
     def check_time_bounds(self, signal: Signal, params: tuple) -> float:
         """
             Method checks new start and stop times to ensure signal is not cropped out
@@ -1601,21 +1692,24 @@ class TimeCrop(SignalTransform):
         start, crop_length = params
 
         for meta in signal["metadata"]:
-            original_start_sample = meta["start"] * data_shape(signal["data"])[0]
+            original_start_sample = meta["start"] * \
+                data_shape(signal["data"])[0]
             original_stop_sample = meta["stop"] * data_shape(signal["data"])[0]
-            #new_start_sample = original_start_sample - start
+            # new_start_sample = original_start_sample - start
             new_start_sample = start
             new_stop_sample = original_stop_sample - start
-            start_clip = np.clip(float(new_start_sample / crop_length), a_min=0.0, a_max=1.0)
-            stop_clip = np.clip(float(new_stop_sample / crop_length), a_min=0.0, a_max=1.0)
+            start_clip = np.clip(
+                float(new_start_sample / crop_length), a_min=0.0, a_max=1.0)
+            stop_clip = np.clip(
+                float(new_stop_sample / crop_length), a_min=0.0, a_max=1.0)
             duration = stop_clip - start_clip
             if duration < .001:
-                start_list.append(int(meta["start"] * data_shape(signal["data"])[0]))
+                start_list.append(
+                    int(meta["start"] * data_shape(signal["data"])[0]))
             else:
                 start_list.append(int(new_start_sample))
 
         return np.min(start_list), crop_length
-
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
 
@@ -1634,7 +1728,8 @@ class TimeCrop(SignalTransform):
                 )
             )
 
-        signal["data"]["samples"] = F.time_crop(signal["data"]["samples"], params[0], self.crop_length)
+        signal["data"]["samples"] = F.time_crop(
+            signal["data"]["samples"], params[0], self.crop_length)
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
@@ -1644,12 +1739,15 @@ class TimeCrop(SignalTransform):
         params = self.check_time_bounds(signal, params)
         start, crop_length = params
         for meta in signal["metadata"]:
-            original_start_sample = meta["start"] * data_shape(signal["data"])[0]
+            original_start_sample = meta["start"] * \
+                data_shape(signal["data"])[0]
             original_stop_sample = meta["stop"] * data_shape(signal["data"])[0]
             new_start_sample = original_start_sample - start
             new_stop_sample = original_stop_sample - start
-            meta["start"] = np.clip(float(new_start_sample / crop_length), a_min=0.0, a_max=1.0)
-            meta["stop"] = np.clip(float(new_stop_sample / crop_length), a_min=0.0, a_max=1.0)
+            meta["start"] = np.clip(
+                float(new_start_sample / crop_length), a_min=0.0, a_max=1.0)
+            meta["stop"] = np.clip(
+                float(new_stop_sample / crop_length), a_min=0.0, a_max=1.0)
             meta["duration"] = meta["stop"] - meta["start"]
             meta["num_samples"] = crop_length
 
@@ -1696,7 +1794,8 @@ class TimeReversal(SignalTransform):
 
         do_spectral_inversion = params[0]
         if do_spectral_inversion:
-            signal["data"]["samples"] = F.spectral_inversion(signal["data"]["samples"])
+            signal["data"]["samples"] = F.spectral_inversion(
+                signal["data"]["samples"])
 
         return signal
 
@@ -1730,7 +1829,46 @@ class AmplitudeReversal(SignalTransform):
     """
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        signal["data"]["samples"] = F.amplitude_reversal(signal["data"]["samples"])
+        signal["data"]["samples"] = F.amplitude_reversal(
+            signal["data"]["samples"])
+        return signal
+
+
+class AmplitudeScale(SignalTransform):
+    """Scales the amplitude of the input tensor
+
+    Args:
+        scale (:py:class:`~Callable`, :obj:`float`, :obj:`list`, :obj:`tuple`):
+            The scaling factor to apply.
+            * If Callable, produces a sample by calling scale()
+            * If float, scale is fixed at the value provided  
+            * If list, scale is any element in the list
+            * If tuple, scale is in range of (tuple[0], tuple[1])
+
+    Example:
+        >>> import torchsig.transforms as ST
+        >>> # Fixed scale of 2.0
+        >>> transform = ST.AmplitudeScale(2.0)
+        >>> # Random scale between 0.5 and 2.0
+        >>> transform = ST.AmplitudeScale((0.5, 2.0))
+    """
+
+    def __init__(
+        self,
+        scale: NumericParameter = (0.5, 2.0),
+        **kwargs
+    ) -> None:
+        super(AmplitudeScale, self).__init__(**kwargs)
+        self.scale = to_distribution(scale, self.random_generator)
+        self.string = f"{self.__class__.__name__}(scale={scale})"
+
+    def parameters(self) -> tuple:
+        return (float(self.scale()),)
+
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        scale_value = params[0]
+        signal["data"]["samples"] = F.amplitude_scale(
+            signal["data"]["samples"], scale_value)
         return signal
 
 
@@ -1761,12 +1899,13 @@ class RandomFrequencyShift(SignalTransform):
         super(RandomFrequencyShift, self).__init__(**kwargs)
         self.freq_shift = to_distribution(freq_shift, self.random_generator)
         self.string = (
-            self.__class__.__name__ + "(" + "freq_shift={}".format(freq_shift) + ")"
+            self.__class__.__name__ +
+            "(" + "freq_shift={}".format(freq_shift) + ")"
         )
 
     def parameters(self) -> tuple:
         return (self.freq_shift(),)
-    
+
     def check_freq_bounds(self, signal: Signal, freq_shift: float) -> float:
         """
             Method checks frequency mins and maxes and adjust the new_rate to ensure
@@ -1778,7 +1917,7 @@ class RandomFrequencyShift(SignalTransform):
             test_hf = meta["upper_freq"] + freq_shift
             if test_lf < -.5 or test_hf > .5:
                 if test_lf < -.5:
-                    new_shift = -.5  - meta['lower_freq'] 
+                    new_shift = -.5 - meta['lower_freq']
                 else:
                     new_shift = .5 - meta['upper_freq']
                 ret_list.append(new_shift)
@@ -1790,7 +1929,8 @@ class RandomFrequencyShift(SignalTransform):
         if not has_rf_metadata(signal["metadata"]):
             return signal
         freq_shift = self.check_freq_bounds(signal, params[0])
-        signal["data"]["samples"] = F.freq_shift(signal["data"]["samples"], freq_shift)
+        signal["data"]["samples"] = F.freq_shift(
+            signal["data"]["samples"], freq_shift)
 
         return signal
 
@@ -1801,8 +1941,8 @@ class RandomFrequencyShift(SignalTransform):
         freq_shift = self.check_freq_bounds(signal, params[0])
         for meta in signal["metadata"]:
             # Check bounds for partial signals
-            meta["lower_freq"] += freq_shift 
-            meta["upper_freq"] += freq_shift  
+            meta["lower_freq"] += freq_shift
+            meta["upper_freq"] += freq_shift
             meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
             meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
 
@@ -1857,9 +1997,9 @@ class RandomDelayedFrequencyShift(SignalTransform):
         if not has_rf_metadata(signal["metadata"]):
             num_iq_samples = data_shape(signal["data"])[0]
             signal["data"]["samples"][
-                int(start_shift * num_iq_samples) :
+                int(start_shift * num_iq_samples):
             ] = F.freq_shift(
-                signal["data"]["samples"][int(start_shift * num_iq_samples) :],
+                signal["data"]["samples"][int(start_shift * num_iq_samples):],
                 freq_shift,
             )
         return signal
@@ -1880,8 +2020,10 @@ class RandomDelayedFrequencyShift(SignalTransform):
             # and the second half gets shifted
             if meta["start"] < start_shift:
                 meta_first = deepcopy(meta)
-                meta_first["stop"] = np.clip(meta_first["stop"], a_min=0.0, a_max=start_shift)
-                meta_first["duration"] = meta_first["stop"] - meta_first["start"]
+                meta_first["stop"] = np.clip(
+                    meta_first["stop"], a_min=0.0, a_max=start_shift)
+                meta_first["duration"] = meta_first["stop"] - \
+                    meta_first["start"]
                 new_meta.append(meta_first)
 
                 meta_second = deepcopy(meta)
@@ -1895,7 +2037,8 @@ class RandomDelayedFrequencyShift(SignalTransform):
 
             # signal starts after start_shift
             meta_first = deepcopy(meta)
-            meta_first["stop"] = np.clip(meta_first["stop"], a_min=0.0, a_max=start_shift)
+            meta_first["stop"] = np.clip(
+                meta_first["stop"], a_min=0.0, a_max=start_shift)
             meta_first["duration"] = meta_first["stop"] - meta_first["start"]
 
             # Update freqs for next segment
@@ -1906,17 +2049,18 @@ class RandomDelayedFrequencyShift(SignalTransform):
 
             meta_second = deepcopy(meta)
             meta_second["start"] = start_shift
-            meta_second["duration"] = meta_second["stop"] - meta_second["start"]
+            meta_second["duration"] = meta_second["stop"] - \
+                meta_second["start"]
             new_meta.append(meta_second)
 
         # Perform augmentation
         if avoid_aliasing:
             # If any potential aliasing detected, perform shifting at higher sample rate
             signal["data"]["samples"][
-                int(start_shift * data_shape(signal["data"])[0]) :
+                int(start_shift * data_shape(signal["data"])[0]):
             ] = F.freq_shift_avoid_aliasing(
                 signal["data"]["samples"][
-                    int(start_shift * data_shape(signal["data"])[0]) :
+                    int(start_shift * data_shape(signal["data"])[0]):
                 ],
                 freq_shift,
             )
@@ -1924,10 +2068,10 @@ class RandomDelayedFrequencyShift(SignalTransform):
 
         # Otherwise, use faster freq shifter
         signal["data"]["samples"][
-            int(start_shift * data_shape(signal["data"])[0]) :
+            int(start_shift * data_shape(signal["data"])[0]):
         ] = F.freq_shift(
             signal["data"]["samples"][
-                int(start_shift * data_shape(signal["data"])[0]) :
+                int(start_shift * data_shape(signal["data"])[0]):
             ],
             freq_shift,
         )
@@ -1978,7 +2122,8 @@ class LocalOscillatorDrift(SignalTransform):
     ) -> None:
         super(LocalOscillatorDrift, self).__init__(**kwargs)
         self.max_drift = to_distribution(max_drift, self.random_generator)
-        self.max_drift_rate = to_distribution(max_drift_rate, self.random_generator)
+        self.max_drift_rate = to_distribution(
+            max_drift_rate, self.random_generator)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2044,9 +2189,12 @@ class GainDrift(SignalTransform):
 
     def __init__(
         self,
-        max_drift: FloatParameter = uniform_continuous_distribution(0.005, 0.015),
-        min_drift: FloatParameter = uniform_continuous_distribution(0.005, 0.015),
-        drift_rate: FloatParameter = uniform_continuous_distribution(0.001, 0.01),
+        max_drift: FloatParameter = uniform_continuous_distribution(
+            0.005, 0.015),
+        min_drift: FloatParameter = uniform_continuous_distribution(
+            0.005, 0.015),
+        drift_rate: FloatParameter = uniform_continuous_distribution(
+            0.001, 0.01),
         **kwargs,
     ) -> None:
         super(GainDrift, self).__init__(**kwargs)
@@ -2075,7 +2223,8 @@ class GainDrift(SignalTransform):
 
         # limit rate of change to at most 1/max_drift_rate times the length of the data sample
         gain = (
-            np.cumsum(random_walk) * drift_rate / np.sqrt(data_shape(signal["data"])[0])
+            np.cumsum(random_walk) * drift_rate /
+            np.sqrt(data_shape(signal["data"])[0])
         )
 
         # Every time gain hits max_drift, reset to zero
@@ -2202,7 +2351,8 @@ class AutomaticGainControl(SignalTransform):
         )
 
         signal["data"]["samples"] = F.agc(
-            np.ascontiguousarray(signal["data"]["samples"], dtype=np.complex64),
+            np.ascontiguousarray(
+                signal["data"]["samples"], dtype=np.complex64),
             np.float64(self.initial_gain_db),
             np.float64(alpha_smooth),
             np.float64(alpha_track),
@@ -2265,7 +2415,8 @@ class IQImbalance(SignalTransform):
         self.phase_imbalance = to_distribution(
             iq_phase_imbalance, self.random_generator
         )
-        self.dc_offset = to_distribution(iq_dc_offset_db, self.random_generator)
+        self.dc_offset = to_distribution(
+            iq_dc_offset_db, self.random_generator)
         self.string = (
             self.__class__.__name__
             + "("
@@ -2368,7 +2519,8 @@ class SpectralInversion(SignalTransform):
     """Applies a spectral inversion"""
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
-        signal["data"]["samples"] = F.spectral_inversion(signal["data"]["samples"])
+        signal["data"]["samples"] = F.spectral_inversion(
+            signal["data"]["samples"])
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:
@@ -2521,7 +2673,8 @@ class RandomDropSamples(SignalTransform):
         drop_sizes = self.size(drop_instances).astype(int)
         try:
             drop_starts = np.random.uniform(
-                1, data_shape(signal["data"])[0] - max(drop_sizes) - 1, drop_instances
+                1, data_shape(signal["data"])[0] -
+                max(drop_sizes) - 1, drop_instances
             ).astype(int)
 
             signal["data"]["samples"] = F.drop_samples(
@@ -2611,7 +2764,8 @@ class Clip(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         clip_percentage = params[0]
-        signal["data"]["samples"] = F.clip(signal["data"]["samples"], clip_percentage)
+        signal["data"]["samples"] = F.clip(
+            signal["data"]["samples"], clip_percentage)
         return signal
 
 
@@ -2661,7 +2815,8 @@ class RandomConvolve(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         num_taps, alpha = params
-        signal["data"]["samples"] = F.random_convolve(signal["data"]["samples"], num_taps, alpha)
+        signal["data"]["samples"] = F.random_convolve(
+            signal["data"]["samples"], num_taps, alpha)
         return signal
 
 
@@ -2856,7 +3011,8 @@ class DatasetBasebandCutMix(SignalTransform):
 
         # Mask both data examples based on alpha and a random start value
         insert_num_iq_samples = int(alpha * num_iq_samples)
-        insert_start = np.random.randint(num_iq_samples - insert_num_iq_samples)
+        insert_start = np.random.randint(
+            num_iq_samples - insert_num_iq_samples)
         insert_stop = insert_start + insert_num_iq_samples
 
         # Combine two pieces of data
@@ -2927,7 +3083,8 @@ class CutOut(SignalTransform):
     def __init__(
         self,
         duration: NumericParameter = (0.01, 0.2),
-        type: List[str] = (["zeros", "ones", "low_noise", "avg_noise", "high_noise"]),
+        type: List[str] = (["zeros", "ones", "low_noise",
+                           "avg_noise", "high_noise"]),
     ) -> None:
         super(CutOut, self).__init__()
         self.duration = to_distribution(duration, self.random_generator)
@@ -3016,7 +3173,8 @@ class PatchShuffle(SignalTransform):
     ) -> None:
         super(PatchShuffle, self).__init__()
         self.patch_size = to_distribution(patch_size, self.random_generator)
-        self.shuffle_ratio = to_distribution(shuffle_ratio, self.random_generator)
+        self.shuffle_ratio = to_distribution(
+            shuffle_ratio, self.random_generator)
         self.string = (
             self.__class__.__name__
             + "("
@@ -3111,7 +3269,8 @@ class DatasetWidebandCutMix(SignalTransform):
 
         # Mask both data examples based on alpha and a random start value
         insert_num_iq_samples = int(alpha * num_iq_samples)
-        insert_start: int = np.random.randint(num_iq_samples - insert_num_iq_samples)
+        insert_start: int = np.random.randint(
+            num_iq_samples - insert_num_iq_samples)
         insert_stop = insert_start + insert_num_iq_samples
         signal["data"]["samples"][insert_start:insert_stop] = 0
         insert_data[:insert_start] = 0.0
@@ -3323,10 +3482,11 @@ class SpectrogramRandomResizeCrop(SignalTransform):
         mode: str = "complex",
         width: int = 512,
         height: int = 512,
-    ) -> None:   
+    ) -> None:
         super(SpectrogramRandomResizeCrop, self).__init__()
         self.nfft = to_distribution(nfft, self.random_generator)
-        self.overlap_ratio = to_distribution(overlap_ratio, self.random_generator)
+        self.overlap_ratio = to_distribution(
+            overlap_ratio, self.random_generator)
         self.detrend: Optional[str] = None if detrend is None else detrend
         self.scaling: Optional[str] = None if scaling is None else scaling
         self.window_fcn = window_fcn
@@ -3413,12 +3573,14 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                     pad_width_end,
                 )
 
-        crop_width_start = np.random.randint(0, max(1, curr_width - self.width))
-        crop_height_start = np.random.randint(0, max(1, curr_height - self.height))
+        crop_width_start = np.random.randint(
+            0, max(1, curr_width - self.width))
+        crop_height_start = np.random.randint(
+            0, max(1, curr_height - self.height))
         spec_data = spec_data[
             :,
-            crop_height_start : crop_height_start + self.height,
-            crop_width_start : crop_width_start + self.width,
+            crop_height_start: crop_height_start + self.height,
+            crop_width_start: crop_width_start + self.width,
         ]
         signal["data"]["samples"] = spec_data
 
@@ -3432,7 +3594,8 @@ class SpectrogramRandomResizeCrop(SignalTransform):
 
             # Update labels based on padding/cropping
             if pad_height:
-                meta = meta_pad_height(meta, curr_height, self.height, pad_height_start)
+                meta = meta_pad_height(
+                    meta, curr_height, self.height, pad_height_start)
 
             if crop_height:
                 if (
@@ -3441,7 +3604,8 @@ class SpectrogramRandomResizeCrop(SignalTransform):
                     meta["upper_freq"] + 0.5
                 ) * curr_height <= crop_height_start:
                     continue
-                meta = self.meta_crop_height(curr_height, crop_height_start, meta)
+                meta = self.meta_crop_height(
+                    curr_height, crop_height_start, meta)
 
             if pad_width:
                 meta = self.meta_pad_width(curr_width, pad_width_start, meta)
@@ -3464,20 +3628,22 @@ class SpectrogramRandomResizeCrop(SignalTransform):
         vector[: pad_width[0]] = (
             np.random.rand(len(vector[: pad_width[0]])) * kwargs["pad_value"]
         )
-        vector[-pad_width[1] :] = (
-            np.random.rand(len(vector[-pad_width[1] :])) * kwargs["pad_value"]
+        vector[-pad_width[1]:] = (
+            np.random.rand(len(vector[-pad_width[1]:])) * kwargs["pad_value"]
         )
 
     def meta_crop_width(self, curr_width, crop_width_start, meta):
         if meta["start"] * curr_width <= crop_width_start:
             meta["start"] = 0.0
         else:
-            meta["start"] = (meta["start"] * curr_width - crop_width_start) / self.width
+            meta["start"] = (meta["start"] * curr_width -
+                             crop_width_start) / self.width
 
         if meta["stop"] * curr_width >= crop_width_start + self.width:
             meta["stop"] = 1.0
         else:
-            meta["stop"] = (meta["stop"] * curr_width - crop_width_start) / self.width
+            meta["stop"] = (meta["stop"] * curr_width -
+                            crop_width_start) / self.width
         meta["duration"] = meta["stop"] - meta["start"]
 
     def meta_crop_height(self, curr_height, crop_height_start, meta):
@@ -3500,8 +3666,10 @@ class SpectrogramRandomResizeCrop(SignalTransform):
     def meta_pad_width(
         self, curr_width, pad_width_start, meta: SignalMetadata
     ) -> SignalMetadata:
-        meta["start"] = (meta["start"] * curr_width + pad_width_start) / self.width
-        meta["stop"] = (meta["stop"] * curr_width + pad_width_start) / self.width
+        meta["start"] = (meta["start"] * curr_width +
+                         pad_width_start) / self.width
+        meta["stop"] = (meta["stop"] * curr_width +
+                        pad_width_start) / self.width
         meta["duration"] = meta["stop"] - meta["start"]
         return meta
 
@@ -3635,7 +3803,8 @@ class SpectrogramDropSamples(SignalTransform):
         # if drop sizes is empty, just return signal
         try:
             drop_starts = np.random.uniform(
-                0, data_shape(signal["data"])[0] - max(drop_sizes), drop_instances
+                0, data_shape(signal["data"])[0] -
+                max(drop_sizes), drop_instances
             ).astype(int)
 
             signal["data"]["samples"] = F.drop_spec_samples(
@@ -3682,7 +3851,8 @@ class SpectrogramPatchShuffle(SignalTransform):
     ) -> None:
         super(SpectrogramPatchShuffle, self).__init__()
         self.patch_size = to_distribution(patch_size, self.random_generator)
-        self.shuffle_ratio = to_distribution(shuffle_ratio, self.random_generator)
+        self.shuffle_ratio = to_distribution(
+            shuffle_ratio, self.random_generator)
         self.string = (
             self.__class__.__name__
             + "("
@@ -3777,10 +3947,12 @@ class SpectrogramTranslation(SignalTransform):
 
             # Update freq fields
             meta["lower_freq"] = (
-                meta["lower_freq"] + freq_shift / signal["data"]["samples"].shape[2]
+                meta["lower_freq"] + freq_shift /
+                signal["data"]["samples"].shape[2]
             )
             meta["upper_freq"] = (
-                meta["upper_freq"] + freq_shift / signal["data"]["samples"].shape[2]
+                meta["upper_freq"] + freq_shift /
+                signal["data"]["samples"].shape[2]
             )
             if meta["lower_freq"] >= 0.5 or meta["upper_freq"] <= -0.5:
                 continue
@@ -4024,7 +4196,8 @@ class SpectrogramMosaicDownsample(SignalTransform):
     def __init__(self, dataset: SignalDataset) -> None:
         super(SpectrogramMosaicDownsample, self).__init__()
         self.dataset = dataset
-        self.string = self.__class__.__name__ + "(" + "dataset={}".format(dataset) + ")"
+        self.string = self.__class__.__name__ + \
+            "(" + "dataset={}".format(dataset) + ")"
 
     def parameters(self) -> tuple:
         return tuple()
@@ -4042,8 +4215,8 @@ class SpectrogramMosaicDownsample(SignalTransform):
         )
         full_mosaic[
             :,
-            y_idx * height : (y_idx + 1) * height,
-            x_idx * width : (x_idx + 1) * width,
+            y_idx * height: (y_idx + 1) * height,
+            x_idx * width: (x_idx + 1) * width,
         ] = signal["data"]["samples"]
 
         # Next, fill in the remaining cells with data randomly sampled from the input dataset
@@ -4057,8 +4230,8 @@ class SpectrogramMosaicDownsample(SignalTransform):
             curr_data, curr_signal_desc = self.dataset[dataset_idx]
             full_mosaic[
                 :,
-                y_idx * height : (y_idx + 1) * height,
-                x_idx * width : (x_idx + 1) * width,
+                y_idx * height: (y_idx + 1) * height,
+                x_idx * width: (x_idx + 1) * width,
             ] = curr_data
 
         # After the data has been stitched into the large 2x2 gride, downsample by 2
@@ -4082,8 +4255,8 @@ class SpectrogramMosaicDownsample(SignalTransform):
         )
         full_mosaic[
             :,
-            y_idx * height : (y_idx + 1) * height,
-            x_idx * width : (x_idx + 1) * width,
+            y_idx * height: (y_idx + 1) * height,
+            x_idx * width: (x_idx + 1) * width,
         ] = signal["data"]["samples"]
 
         # Update original data's SignalMetadata objects given the cell index
@@ -4108,13 +4281,15 @@ class SpectrogramMosaicDownsample(SignalTransform):
                 meta["lower_freq"] = (meta["lower_freq"] + 0.5) / 2 - 0.5
                 meta["upper_freq"] = (meta["upper_freq"] + 0.5) / 2 - 0.5
                 meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
-                meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
+                meta["center_freq"] = meta["lower_freq"] + \
+                    meta["bandwidth"] * 0.5
 
             else:
                 meta["lower_freq"] = (meta["lower_freq"] + 0.5) / 2
                 meta["upper_freq"] = (meta["upper_freq"] + 0.5) / 2
                 meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
-                meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
+                meta["center_freq"] = meta["lower_freq"] + \
+                    meta["bandwidth"] * 0.5
 
         # Next, fill in the remaining cells with data randomly sampled from the input dataset
         for cell_i in range(4):
@@ -4127,8 +4302,8 @@ class SpectrogramMosaicDownsample(SignalTransform):
             curr_data, curr_signal_desc = self.dataset[dataset_idx]
             full_mosaic[
                 :,
-                y_idx * height : (y_idx + 1) * height,
-                x_idx * width : (x_idx + 1) * width,
+                y_idx * height: (y_idx + 1) * height,
+                x_idx * width: (x_idx + 1) * width,
             ] = curr_data
 
             # Update inserted data's SignalMetadata objects given the cell index
@@ -4155,17 +4330,20 @@ class SpectrogramMosaicDownsample(SignalTransform):
                     meta["lower_freq"] = (meta["lower_freq"] + 0.5) / 2 - 0.5
                     meta["upper_freq"] = (meta["upper_freq"] + 0.5) / 2 - 0.5
                     meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
-                    meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
+                    meta["center_freq"] = meta["lower_freq"] + \
+                        meta["bandwidth"] * 0.5
 
                 else:
                     meta["lower_freq"] = (meta["lower_freq"] + 0.5) / 2
                     meta["upper_freq"] = (meta["upper_freq"] + 0.5) / 2
                     meta["bandwidth"] = meta["upper_freq"] - meta["lower_freq"]
-                    meta["center_freq"] = meta["lower_freq"] + meta["bandwidth"] * 0.5
+                    meta["center_freq"] = meta["lower_freq"] + \
+                        meta["bandwidth"] * 0.5
 
         # After the data has been stitched into the large 2x2 gride, downsample by 2
         signal["data"]["samples"] = full_mosaic[:, ::2, ::2]
         return signal
+
 
 class SpectrogramImage(SignalTransform):
     """Transforms SignalData to spectrogram image
@@ -4190,6 +4368,6 @@ class SpectrogramImage(SignalTransform):
 
     def transform_data(self, signal: Signal, params: tuple) -> Signal:
         signal["data"]["samples"] = F.spectrogram_image(
-            signal["data"]["samples"], 
+            signal["data"]["samples"],
         )
         return signal

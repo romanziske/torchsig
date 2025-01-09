@@ -7,8 +7,6 @@ from torchsig.utils.types import (
     is_rf_metadata,
     is_rf_modulated_metadata,
     create_modulated_rf_metadata,
-    has_modulated_rf_metadata,
-    has_rf_metadata,
 )
 from torchsig.datasets.signal_classes import torchsig_signals
 from torchsig.transforms.transforms import Transform
@@ -48,6 +46,7 @@ __all__ = [
     "ListTupleToDesc",
     "LabelSmoothing",
     "ListTupleToYOLO",
+    "ClassIdxToTensor",
 ]
 
 
@@ -70,7 +69,7 @@ def generate_mask(
     if begin_height == end_height:
         masks[
             mask_idx,
-            begin_height : end_height + 1,
+            begin_height: end_height + 1,
             begin_width:end_width,
         ] = mask_value
         return masks
@@ -105,23 +104,24 @@ class DescToClassName(Transform):
 
         return []
 
+
 class DescToFamilyName(Transform):
     """Transform to transform SignalMetadata into either the single class name
     or a list of the classes present if there are multiple classes
 
     """
     class_family_dict: Dict[str, str] = torchsig_signals.family_dict
-    
-    def __init__(self, class_family_dict: Optional[Dict[str, str]] = None,family_list: Optional[List[str]] = None,) -> None:
-        super(DescToFamilyName, self).__init__()    
+
+    def __init__(self, class_family_dict: Optional[Dict[str, str]] = None, family_list: Optional[List[str]] = None,) -> None:
+        super(DescToFamilyName, self).__init__()
         self.class_family_dict: Dict[str, str] = (
-                class_family_dict if class_family_dict else self.class_family_dict
-            )
+            class_family_dict if class_family_dict else self.class_family_dict
+        )
         self.family_list: List[str] = (
-                family_list
-                if family_list
-                else sorted(list(set(self.class_family_dict.values())))
-            )
+            family_list
+            if family_list
+            else sorted(list(set(self.class_family_dict.values())))
+        )
 
     def __call__(self, metadata: List[SignalMetadata]) -> Union[List[str], str]:
         families: List[str] = []
@@ -258,14 +258,16 @@ class DescToMask(Transform):
         self.height = height
 
     def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
-        masks: np.ndarray = np.zeros((self.max_bursts, self.height, self.width))
+        masks: np.ndarray = np.zeros(
+            (self.max_bursts, self.height, self.width))
         idx = 0
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
                 continue
 
             meta = meta_bound_frequency(meta)
-            masks = generate_mask(meta, masks, idx, 1.0, self.height, self.width)
+            masks = generate_mask(meta, masks, idx, 1.0,
+                                  self.height, self.width)
             idx += 1
         return masks
 
@@ -294,7 +296,8 @@ class DescToMaskSignal(Transform):
                 continue
 
             meta = meta_bound_frequency(meta)
-            masks = generate_mask(meta, np.expand_dims(masks, 0), 0, 1.0, self.height, self.width)[0]
+            masks = generate_mask(meta, np.expand_dims(
+                masks, 0), 0, 1.0, self.height, self.width)[0]
         return masks
 
 
@@ -339,7 +342,8 @@ class DescToMaskFamily(Transform):
         self.label_encode = label_encode
 
     def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
-        masks: np.ndarray = np.zeros((len(self.family_list), self.height, self.width))
+        masks: np.ndarray = np.zeros(
+            (len(self.family_list), self.height, self.width))
         for meta in metadata:
             if not is_rf_metadata(meta) and not is_rf_modulated_metadata(meta):
                 raise TypeError("Target Transform requires RFMetadata")
@@ -351,10 +355,12 @@ class DescToMaskFamily(Transform):
 
             family_name = self.class_family_dict[meta["class_name"]]
             family_idx = self.family_list.index(family_name)
-            masks = generate_mask(meta, masks, family_idx, 1.0, self.height, self.width)
+            masks = generate_mask(meta, masks, family_idx,
+                                  1.0, self.height, self.width)
 
         if self.label_encode:
-            background_mask: np.ndarray = np.zeros((1, self.height, self.height))
+            background_mask: np.ndarray = np.zeros(
+                (1, self.height, self.height))
             masks = np.concatenate([background_mask, masks], axis=0)
             masks = np.argmax(masks, axis=0)
         return masks
@@ -381,7 +387,8 @@ class DescToMaskClass(Transform):
         self.height = height
 
     def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
-        masks: np.ndarray = np.zeros((self.num_classes, self.height, self.width))
+        masks: np.ndarray = np.zeros(
+            (self.num_classes, self.height, self.width))
         for meta in metadata:
             if not is_rf_modulated_metadata(meta):
                 print("throwing away meta data")
@@ -389,7 +396,8 @@ class DescToMaskClass(Transform):
                 continue
 
             meta = meta_bound_frequency(meta)
-            masks = generate_mask(meta, masks, meta["class_index"], 1.0, self.height, self.width)
+            masks = generate_mask(
+                meta, masks, meta["class_index"], 1.0, self.height, self.width)
 
         return masks
 
@@ -483,7 +491,8 @@ class DescToBBox(Transform):
             elif meta["start"] + meta["duration"] * 0.5 >= 1.0:
                 # Center is outside grid cell; re-center to truncated burst
                 meta["duration"] = 1 - meta["start"]
-            x: float = (meta["start"] + meta["duration"] * 0.5) * self.grid_width
+            x: float = (meta["start"] + meta["duration"]
+                        * 0.5) * self.grid_width
             time_cell: int = int(np.floor(x))
             center_time: float = x - time_cell
 
@@ -591,7 +600,8 @@ class DescToAnchorBoxes(Transform):
 
         # Compute the area of intersection
         inter_area: float = abs(
-            max((x_stop_int - x_start_int, 0)) * max((y_stop_int - y_start_int), 0)
+            max((x_stop_int - x_start_int, 0)) *
+            max((y_stop_int - y_start_int), 0)
         )
         if inter_area == 0:
             return 0
@@ -618,7 +628,8 @@ class DescToAnchorBoxes(Transform):
             elif meta["start"] + meta["duration"] * 0.5 > 1.0:
                 # Center is outside grid cell; re-center to truncated burst
                 meta["duration"] = 1 - meta["start"]
-            x: float = (meta["start"] + meta["duration"] * 0.5) * self.grid_width
+            x: float = (meta["start"] + meta["duration"]
+                        * 0.5) * self.grid_width
             time_cell: int = int(np.floor(x))
             center_time: float = x - time_cell
 
@@ -648,7 +659,8 @@ class DescToAnchorBoxes(Transform):
             for anchor_idx, anchor_box in enumerate(self.anchor_boxes):
                 # anchor_start = ((time_cell+0.5) / self.grid_width) - (anchor_box[0]*0.5) # Anchor centered on cell
                 anchor_start: float = (
-                    meta["start"] + 0.5 * meta["duration"] - anchor_box[0] * 0.5
+                    meta["start"] + 0.5 *
+                    meta["duration"] - anchor_box[0] * 0.5
                 )  # Anchor overlaid on burst
                 anchor_duration: float = anchor_box[0]
                 # anchor_center_freq = (freq_cell+0.5) / self.grid_height # Anchor centered on cell
@@ -771,7 +783,8 @@ class DescToClassEncoding(Transform):
     ) -> None:
         super(DescToClassEncoding, self).__init__()
         self.class_list = torchsig_signals.class_list if class_list is None else class_list
-        self.num_classes = len(self.class_list) if num_classes is None else num_classes
+        self.num_classes = len(
+            self.class_list) if num_classes is None else num_classes
 
     def __call__(self, metadata: List[SignalMetadata]) -> np.ndarray:
         encoding: np.ndarray = np.zeros((self.num_classes,))
@@ -839,7 +852,8 @@ class DescToWeightedCutMix(Transform):
         for meta in metadata:
             assert meta["class_name"] is not None
             assert meta["duration"] is not None
-            encoding[self.class_list.index(meta["class_name"])] += meta["duration"]
+            encoding[self.class_list.index(
+                meta["class_name"])] += meta["duration"]
         # Normalize on total signals durations
         encoding = encoding / np.sum(encoding)
         return encoding
@@ -926,6 +940,7 @@ class DescToBBoxSignalDict(Transform):
         }
         return targets
 
+
 class DescToBBoxYoloSignalDict(Transform):
     """Transform to transform SignalMetadatas into the YOLO class bounding box format
     using dictionaries of labels and boxes, similar to the COCO image dataset.
@@ -964,6 +979,7 @@ class DescToBBoxYoloSignalDict(Transform):
             "boxes": torch.FloatTensor(boxes),
         }
         return targets
+
 
 class DescToBBoxYoloDict(Transform):
     """Transform to transform SignalMetadatas into the class bounding box format
@@ -1111,19 +1127,19 @@ class DescToInstMaskDict(Transform):
             ):
                 masks[
                     meta_idx,
-                    int((meta["lower_freq"] + 0.5) * self.height) : int(
+                    int((meta["lower_freq"] + 0.5) * self.height): int(
                         (meta["upper_freq"] + 0.5) * self.height
                     )
                     + 1,
-                    int(meta["start"] * self.width) : int(meta["stop"] * self.width),
+                    int(meta["start"] * self.width): int(meta["stop"] * self.width),
                 ] = 1.0
             else:
                 masks[
                     meta_idx,
-                    int((meta["lower_freq"] + 0.5) * self.height) : int(
+                    int((meta["lower_freq"] + 0.5) * self.height): int(
                         (meta["upper_freq"] + 0.5) * self.height
                     ),
-                    int(meta["start"] * self.width) : int(meta["stop"] * self.width),
+                    int(meta["start"] * self.width): int(meta["stop"] * self.width),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1172,19 +1188,19 @@ class DescToSignalInstMaskDict(Transform):
             ):
                 masks[
                     meta_idx,
-                    int((meta["lower_freq"] + 0.5) * self.height) : int(
+                    int((meta["lower_freq"] + 0.5) * self.height): int(
                         (meta["upper_freq"] + 0.5) * self.height
                     )
                     + 1,
-                    int(meta["start"] * self.width) : int(meta["stop"] * self.width),
+                    int(meta["start"] * self.width): int(meta["stop"] * self.width),
                 ] = 1.0
             else:
                 masks[
                     meta_idx,
-                    int((meta["lower_freq"] + 0.5) * self.height) : int(
+                    int((meta["lower_freq"] + 0.5) * self.height): int(
                         (meta["upper_freq"] + 0.5) * self.height
                     ),
-                    int(meta["start"] * self.width) : int(meta["stop"] * self.width),
+                    int(meta["start"] * self.width): int(meta["stop"] * self.width),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1254,19 +1270,19 @@ class DescToSignalFamilyInstMaskDict(Transform):
             ):
                 masks[
                     meta_idx,
-                    int((meta["lower_freq"] + 0.5) * self.height) : int(
+                    int((meta["lower_freq"] + 0.5) * self.height): int(
                         (meta["upper_freq"] + 0.5) * self.height
                     )
                     + 1,
-                    int(meta["start"] * self.width) : int(meta["stop"] * self.width),
+                    int(meta["start"] * self.width): int(meta["stop"] * self.width),
                 ] = 1.0
             else:
                 masks[
                     meta_idx,
-                    int((meta["lower_freq"] + 0.5) * self.height) : int(
+                    int((meta["lower_freq"] + 0.5) * self.height): int(
                         (meta["upper_freq"] + 0.5) * self.height
                     ),
-                    int(meta["start"] * self.width) : int(meta["stop"] * self.width),
+                    int(meta["start"] * self.width): int(meta["stop"] * self.width),
                 ] = 1.0
 
         targets: Dict[str, torch.Tensor] = {
@@ -1274,6 +1290,7 @@ class DescToSignalFamilyInstMaskDict(Transform):
             "masks": torch.Tensor(masks.astype(bool)),
         }
         return targets
+
 
 class DescToListTuple(Transform):
     """Transform to transform SignalMetadata into a list of tuples containing
@@ -1284,6 +1301,7 @@ class DescToListTuple(Transform):
         precision (np.dtype, optional): 
         Specify the data type precision for the tuple's information. Defaults to np.dtype(np.float64).
     """
+
     def __init__(self, precision: np.dtype = np.dtype(np.float64)) -> None:
         super(DescToListTuple, self).__init__()
         self.precision = precision
@@ -1319,12 +1337,13 @@ class ListTupleToDesc(Transform):
         num_iq_samples (int): Number of IQ samples.
         class_list (List[str]): List of signal classes.
     """
+
     def __init__(
         self,
         sample_rate: float,
         num_iq_samples: int,
         class_list: List[str],
-    ) -> None:   
+    ) -> None:
         super(ListTupleToDesc, self).__init__()
         self.sample_rate = sample_rate
         self.num_iq_samples = num_iq_samples
@@ -1337,13 +1356,15 @@ class ListTupleToDesc(Transform):
         metadata: List[SignalMetadata] = []
         # Loop through SignalMetadata's, converting values of interest to tuples
         for curr_tuple in list_tuple:
-            tup: Tuple[Any, ...] = tuple([l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple])
+            tup: Tuple[Any, ...] = tuple(
+                [l.numpy() if isinstance(l, torch.Tensor) else l for l in curr_tuple])
             name, start, stop, cf, bw, snr = tup
             meta: SignalMetadata = create_modulated_rf_metadata(
                 sample_rate=0 if not self.sample_rate else self.sample_rate,
                 num_samples=self.num_iq_samples if self.num_iq_samples else 0,
                 class_name=name,
-                class_index=self.class_list.index(name) if self.class_list else 0,
+                class_index=self.class_list.index(
+                    name) if self.class_list else 0,
                 start=start,
                 stop=stop,
                 center_freq=cf,
@@ -1391,43 +1412,45 @@ class LabelSmoothing(Transform):
         )
         return output
 
+
 class ListTupleToYOLO(Transform):
     """Transform SignalMetadata (label) into YOLO format containing class and bounding box information.
-    
+
         (class: str, start: float, stop: float, center_freq: float, bandwidth: float, snr: float)
         ->
         (class: int, x: float, y: float, width: int, height: int)
-        
+
         See Ultralytics for more information: 
         https://docs.ultralytics.com/yolov5/tutorials/train_custom_data/#22-create-labels
-        
+
         Args:
             None
     """
-    
+
     def __init__(self):
         super().__init__()
-        
-    def __call__(self,list_tuple: List[Tuple[str, float, float, float, float, float]]) -> List[Tuple[int, float, float, float, float]]:
+
+    def __call__(self, list_tuple: List[Tuple[str, float, float, float, float, float]]) -> List[Tuple[int, float, float, float, float]]:
         # prevents circular imports
         from torchsig.datasets.modulations import ModulationsDataset
-        
+
         output: List[Tuple[int, float, float, float, float]] = []
-        
+
         for row in list_tuple:
-            sig_class = row[0] # signal class name
-            start = row[1] # signal start pixel
-            stop = row[2] # signal end pixel
-            center_freq = row[3] + 0.5 # norm [-0.5, 0.5], convert to [0, 1]
-            bandwidth = row[4] # signal height
-            
-            sig_class_index = ModulationsDataset.default_classes.index(sig_class) # signal class index
-            width = stop - start # width
-            height = bandwidth # height
-            x_center = start + (width / 2.0) 
+            sig_class = row[0]  # signal class name
+            start = row[1]  # signal start pixel
+            stop = row[2]  # signal end pixel
+            center_freq = row[3] + 0.5  # norm [-0.5, 0.5], convert to [0, 1]
+            bandwidth = row[4]  # signal height
+
+            sig_class_index = ModulationsDataset.default_classes.index(
+                sig_class)  # signal class index
+            width = stop - start  # width
+            height = bandwidth  # height
+            x_center = start + (width / 2.0)
             y_center = center_freq
             # center of signal (x, y)
-            
+
             t: Tuple[int, float, float, float, float] = (
                 sig_class_index,
                 x_center,
@@ -1436,5 +1459,19 @@ class ListTupleToYOLO(Transform):
                 height
             )
             output.append(t)
-            
+
         return output
+
+
+class ClassIdxToTensor(Transform):
+    """Transform to transform class index to tensor
+
+    Args:
+        None
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, class_idx: int) -> torch.Tensor:
+        return torch.tensor(class_idx)

@@ -1,1 +1,1 @@
-from . import efficientnet, xcit, inceptiontime
+from . import efficientnet, xcit, inceptiontime, resnet

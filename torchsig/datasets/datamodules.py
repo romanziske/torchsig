@@ -1,10 +1,10 @@
 """PyTorch Lightning DataModules for TorchSigNarrowband and TorchSigWideband
 """
+import os
+from typing import Callable, Optional
 from torch.utils.data import DataLoader
 from torch.nn import Identity
-import pytorch_lightning as pl
-from typing import Callable, Optional
-import os
+from lightning.pytorch import LightningDataModule
 
 from torchsig.datasets.torchsig_narrowband import TorchSigNarrowband
 from torchsig.datasets.torchsig_wideband import TorchSigWideband
@@ -15,7 +15,7 @@ from torchsig.datasets.modulations import ModulationsDataset
 from torchsig.utils.writer import DatasetCreator
 
 
-class TorchSigDataModule(pl.LightningDataModule):
+class TorchSigDataModule(LightningDataModule):
     """General TorchSig DataModule.
 
         Subclasses must implement `prepare_data`, `setup` functions.

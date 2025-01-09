@@ -15,7 +15,6 @@ import cv2
 DIR_PATH = os.path.dirname(os.path.realpath(__file__))
 
 
-
 __all__ = [
     "FloatParameter",
     "IntParameter",
@@ -51,6 +50,7 @@ __all__ = [
     "channel_swap",
     "time_reversal",
     "amplitude_reversal",
+    "amplitude_scale",
     "roll_off",
     "add_slope",
     "mag_rescale",
@@ -68,7 +68,8 @@ __all__ = [
 ]
 
 
-FloatParameter = Union[Callable[[int], float], float, Tuple[float, float], List]
+FloatParameter = Union[Callable[[int], float],
+                       float, Tuple[float, float], List]
 IntParameter = Union[Callable[[int], int], int, Tuple[int, int], List]
 NumericParameter = Union[FloatParameter, IntParameter]
 
@@ -239,11 +240,13 @@ def resample(
     else:
         taps_phase = 32
         fc = 0.95 / max_uprate
-        resamp_fil = calculate_exponential_filter(P=max_uprate, num_taps=taps_phase * max_uprate, fc=fc, K=24.06)
+        resamp_fil = calculate_exponential_filter(
+            P=max_uprate, num_taps=taps_phase * max_uprate, fc=fc, K=24.06)
         np.save(coeffs_fullpath, resamp_fil)
 
     # Resample
-    resampled = sp.upfirdn(resamp_fil * max_uprate, tensor, up=max_uprate, down=max_uprate//resamp_rate)
+    resampled = sp.upfirdn(resamp_fil * max_uprate, tensor,
+                           up=max_uprate, down=max_uprate//resamp_rate)
 
     # Handle extra or not enough IQ samples
     if keep_samples:
@@ -264,7 +267,8 @@ def make_sinc_filter(beta, tap_cnt, sps, offset=0):
     return the taps of a sinc filter
     """
     ntap_cnt = tap_cnt + ((tap_cnt + 1) % 2)
-    t_index = np.arange(-(ntap_cnt - 1) // 2, (ntap_cnt - 1) // 2 + 1) / np.double(sps)
+    t_index = np.arange(-(ntap_cnt - 1) // 2,
+                        (ntap_cnt - 1) // 2 + 1) / np.double(sps)
 
     taps = np.sinc(beta * t_index + offset)
     taps /= np.sum(taps)
@@ -334,7 +338,8 @@ def time_varying_awgn(
     else:
         if random_regions:
             inflection_indices = np.sort(
-                np.random.choice(tensor.shape[0], size=inflections, replace=False)
+                np.random.choice(
+                    tensor.shape[0], size=inflections, replace=False)
             )
             inflection_indices = np.append(inflection_indices, tensor.shape[0])
             inflection_indices = np.insert(inflection_indices, 0, 0)
@@ -380,7 +385,8 @@ def impulsive_interference(
     beta = 0.3
     num_samps = len(tensor)
     sinc_pulse = make_sinc_filter(beta, num_samps, 0.1, 0)
-    imp = amp * np.roll(sinc_pulse / np.max(sinc_pulse), int(per_offset * num_samps))
+    imp = amp * np.roll(sinc_pulse / np.max(sinc_pulse),
+                        int(per_offset * num_samps))
     rand_phase = np.random.uniform(0, 2 * np.pi)
     imp = np.exp(1j * rand_phase) * imp
     output: np.ndarray = tensor + imp
@@ -431,12 +437,14 @@ def rayleigh_fading(
     imag_tap_function = interpolate.interp1d(old_time, rayleigh_taps.imag)
 
     new_time = np.linspace(0, 1.0, 100 * num_taps, endpoint=True)
-    rayleigh_taps = real_tap_function(new_time) + 1j * imag_tap_function(new_time)
+    rayleigh_taps = real_tap_function(
+        new_time) + 1j * imag_tap_function(new_time)
     rayleigh_taps *= power_taps
 
     # Ensure that we maintain the same amount of power before and after the transform
     input_power = np.linalg.norm(tensor)
-    tensor = sp.upfirdn(rayleigh_taps, tensor, up=100, down=100)[-tensor.shape[0] :]
+    tensor = sp.upfirdn(rayleigh_taps, tensor, up=100,
+                        down=100)[-tensor.shape[0]:]
     output_power = np.linalg.norm(tensor)
     tensor = np.multiply(input_power / output_power, tensor)
     return tensor
@@ -721,7 +729,7 @@ def time_crop(tensor: np.ndarray, start: int, length: int) -> np.ndarray:
     if np.max(start) >= tensor.shape[0] or length == 0:
         return np.empty(shape=(1, 1))
 
-    return tensor[start : start + length]
+    return tensor[start: start + length]
 
 
 def freq_shift(tensor: np.ndarray, f_shift: float) -> np.ndarray:
@@ -741,7 +749,8 @@ def freq_shift(tensor: np.ndarray, f_shift: float) -> np.ndarray:
     sinusoid = np.exp(
         2j * np.pi * f_shift * np.arange(tensor.shape[0], dtype=np.float64)
     )
-    return np.multiply(tensor, np.asarray(sinusoid))
+    mult = np.multiply(tensor, np.asarray(sinusoid))
+    return mult
 
 
 def freq_shift_avoid_aliasing(
@@ -785,7 +794,8 @@ def freq_shift_avoid_aliasing(
     convolve_out = sp.convolve(tensor, taps, mode="full")
     lidx = (len(convolve_out) - int(num_iq_samples * up)) // 2
     ridx = lidx + len(tensor)
-    tensor = convolve_out[: int(num_iq_samples * up)]  # prune to be correct size out of filter
+    # prune to be correct size out of filter
+    tensor = convolve_out[: int(num_iq_samples * up)]
 
     # Decimate back down to correct sample rate
     tensor = sp.resample_poly(tensor, down, up)
@@ -812,7 +822,8 @@ def _fractional_shift_helper(taps: np.ndarray, raw_iq: np.ndarray, stride: int, 
     # Determine output size
     num_taps = taps.shape[0]
     num_raw_iq = raw_iq.shape[0]
-    output = np.zeros(((num_taps + num_raw_iq - 1 - group_delay),), dtype=np.complex128)
+    output = np.zeros(
+        ((num_taps + num_raw_iq - 1 - group_delay),), dtype=np.complex128)
 
     # This is a just convolution of taps and raw_iq
     for o_idx in range(output.shape[0]):
@@ -845,8 +856,10 @@ def fractional_shift(
         transformed (:class:`numpy.ndarray`):
             Tensor that has been fractionally-shifted along time dimension of size tensor.shape
     """
-    real_part = _fractional_shift_helper(taps, tensor.real, stride, int(stride * float(delay)) )
-    imag_part = _fractional_shift_helper(taps, tensor.imag, stride, int(stride * float(delay)) )
+    real_part = _fractional_shift_helper(
+        taps, tensor.real, stride, int(stride * float(delay)))
+    imag_part = _fractional_shift_helper(
+        taps, tensor.imag, stride, int(stride * float(delay)))
     tensor = real_part[: tensor.shape[0]] + 1j * imag_part[: tensor.shape[0]]
     zero_idx = -1 if delay < 0 else 0  # do not extrapolate, zero-pad.
     tensor[zero_idx] = 0
@@ -874,12 +887,15 @@ def iq_imbalance(tensor: np.ndarray, iq_amplitude_imbalance_db: float, iq_phase_
             Tensor that has an IQ imbalance applied across the time dimension of size tensor.shape
     """
     # amplitude imbalance
-    tensor = 10 ** (iq_amplitude_imbalance_db / 10.0) * np.real(tensor) + 1j * 10 ** (iq_amplitude_imbalance_db / 10.0) * np.imag(tensor)
+    tensor = 10 ** (iq_amplitude_imbalance_db / 10.0) * np.real(tensor) + \
+        1j * 10 ** (iq_amplitude_imbalance_db / 10.0) * np.imag(tensor)
 
     # phase imbalance
-    tensor = np.exp(-1j * iq_phase_imbalance / 2.0) * np.real(tensor) + np.exp(1j * (np.pi / 2.0 + iq_phase_imbalance / 2.0)) * np.imag(tensor)
+    tensor = np.exp(-1j * iq_phase_imbalance / 2.0) * np.real(tensor) + \
+        np.exp(1j * (np.pi / 2.0 + iq_phase_imbalance / 2.0)) * np.imag(tensor)
 
-    tensor += 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor) + 1j * 10 ** (iq_dc_offset_db / 10.0) * np.imag(tensor)
+    tensor += 10 ** (iq_dc_offset_db / 10.0) * np.real(tensor) + \
+        1j * 10 ** (iq_dc_offset_db / 10.0) * np.imag(tensor)
     return tensor
 
 
@@ -949,6 +965,24 @@ def amplitude_reversal(tensor: np.ndarray) -> np.ndarray:
     return tensor * -1
 
 
+def amplitude_scale(tensor: np.ndarray, scale: float) -> np.ndarray:
+    """Applies an amplitude scaling to the input tensor
+
+    Args:
+        tensor: (:class:`numpy.ndarray`):
+            (batch_size, vector_length, ...)-sized tensor.
+
+        scale: (:obj:`float`):
+            Scaling factor
+
+    Returns:
+        transformed (:class:`numpy.ndarray`):
+            Tensor that has undergone an amplitude scaling
+
+    """
+    return tensor * scale
+
+
 def roll_off(
     tensor: np.ndarray,
     lowercutfreq: float,
@@ -983,7 +1017,8 @@ def roll_off(
             num_taps += 1
     bandwidth = uppercutfreq - lowercutfreq
     center_freq = lowercutfreq - 0.5 + bandwidth / 2
-    sinusoid = np.exp(2j * np.pi * center_freq * np.linspace(0, num_taps - 1, num_taps))
+    sinusoid = np.exp(2j * np.pi * center_freq *
+                      np.linspace(0, num_taps - 1, num_taps))
     taps = sp.firwin(
         num_taps,
         bandwidth,
@@ -1080,17 +1115,19 @@ def drop_samples(
                 dtype=np.complex128,
             )
         elif fill == "mean":
-            drop_region = np.full(drop_sizes[idx], np.mean(tensor), dtype=np.complex128)
+            drop_region = np.full(drop_sizes[idx], np.mean(
+                tensor), dtype=np.complex128)
         elif fill == "zero":
             drop_region = np.zeros(drop_sizes[idx], dtype=np.complex128)
         else:
             raise ValueError(
-                "fill expects ffill, bfill, mean, or zero. Found {}".format(fill)
+                "fill expects ffill, bfill, mean, or zero. Found {}".format(
+                    fill)
             )
 
         # Update drop region
         # breakpoint()
-        tensor[drop_start : drop_start + drop_sizes[idx]] = drop_region
+        tensor[drop_start: drop_start + drop_sizes[idx]] = drop_region
 
     return tensor
 
@@ -1202,7 +1239,7 @@ def random_convolve(
 
     """
     filter_taps = np.random.rand(num_taps) + 1j * np.random.rand(num_taps)
-    convolve_out =  sp.convolve(tensor, filter_taps, mode="full")
+    convolve_out = sp.convolve(tensor, filter_taps, mode="full")
     lidx = (len(convolve_out) - len(tensor)) // 2
     ridx = lidx + len(tensor)
     return (1 - alpha) * tensor + alpha * convolve_out[lidx:ridx]
@@ -1371,7 +1408,7 @@ def cut_out(
         )
 
     # Insert cut mask into tensor
-    tensor[cut_start : cut_start + cut_mask_length] = cut_mask
+    tensor[cut_start: cut_start + cut_mask_length] = cut_mask
 
     return tensor
 
@@ -1408,9 +1445,9 @@ def patch_shuffle(
 
     for patch_idx in patches_to_shuffle:
         patch_start = int(patch_idx * patch_size)
-        patch = tensor[patch_start : patch_start + patch_size]
+        patch = tensor[patch_start: patch_start + patch_size]
         np.random.shuffle(patch)
-        tensor[patch_start : patch_start + patch_size] = patch
+        tensor[patch_start: patch_start + patch_size] = patch
 
     return tensor
 
@@ -1441,69 +1478,85 @@ def drop_spec_samples(
             Tensor that has undergone the dropped samples
 
     """
-    flat_spec = tensor.reshape(tensor.shape[0], tensor.shape[1] * tensor.shape[2])
+    flat_spec = tensor.reshape(
+        tensor.shape[0], tensor.shape[1] * tensor.shape[2])
     for idx, drop_start in enumerate(drop_starts):
         if fill == "ffill":
-            drop_region_real = np.ones(drop_sizes[idx]) * flat_spec[0, drop_start - 1]
+            drop_region_real = np.ones(
+                drop_sizes[idx]) * flat_spec[0, drop_start - 1]
             drop_region_complex = (
                 np.ones(drop_sizes[idx]) * flat_spec[1, drop_start - 1]
             )
-            flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
+            flat_spec[0, drop_start: drop_start +
+                      drop_sizes[idx]] = drop_region_real
             flat_spec[
-                1, drop_start : drop_start + drop_sizes[idx]
+                1, drop_start: drop_start + drop_sizes[idx]
             ] = drop_region_complex
         elif fill == "bfill":
             drop_region_real = (
-                np.ones(drop_sizes[idx]) * flat_spec[0, drop_start + drop_sizes[idx]]
+                np.ones(drop_sizes[idx]) * flat_spec[0,
+                                                     drop_start + drop_sizes[idx]]
             )
             drop_region_complex = (
-                np.ones(drop_sizes[idx]) * flat_spec[1, drop_start + drop_sizes[idx]]
+                np.ones(drop_sizes[idx]) * flat_spec[1,
+                                                     drop_start + drop_sizes[idx]]
             )
-            flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
+            flat_spec[0, drop_start: drop_start +
+                      drop_sizes[idx]] = drop_region_real
             flat_spec[
-                1, drop_start : drop_start + drop_sizes[idx]
+                1, drop_start: drop_start + drop_sizes[idx]
             ] = drop_region_complex
         elif fill == "mean":
             drop_region_real = np.ones(drop_sizes[idx]) * np.mean(flat_spec[0])
-            drop_region_complex = np.ones(drop_sizes[idx]) * np.mean(flat_spec[1])
-            flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
+            drop_region_complex = np.ones(
+                drop_sizes[idx]) * np.mean(flat_spec[1])
+            flat_spec[0, drop_start: drop_start +
+                      drop_sizes[idx]] = drop_region_real
             flat_spec[
-                1, drop_start : drop_start + drop_sizes[idx]
+                1, drop_start: drop_start + drop_sizes[idx]
             ] = drop_region_complex
         elif fill == "zero":
             drop_region = np.zeros(drop_sizes[idx])
-            flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
+            flat_spec[:, drop_start: drop_start +
+                      drop_sizes[idx]] = drop_region
         elif fill == "min":
-            drop_region_real = np.ones(drop_sizes[idx]) * np.min(np.abs(flat_spec[0]))
+            drop_region_real = np.ones(
+                drop_sizes[idx]) * np.min(np.abs(flat_spec[0]))
             drop_region_complex = np.ones(drop_sizes[idx]) * np.min(
                 np.abs(flat_spec[1])
             )
-            flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
+            flat_spec[0, drop_start: drop_start +
+                      drop_sizes[idx]] = drop_region_real
             flat_spec[
-                1, drop_start : drop_start + drop_sizes[idx]
+                1, drop_start: drop_start + drop_sizes[idx]
             ] = drop_region_complex
         elif fill == "max":
-            drop_region_real = np.ones(drop_sizes[idx]) * np.max(np.abs(flat_spec[0]))
+            drop_region_real = np.ones(
+                drop_sizes[idx]) * np.max(np.abs(flat_spec[0]))
             drop_region_complex = np.ones(drop_sizes[idx]) * np.max(
                 np.abs(flat_spec[1])
             )
-            flat_spec[0, drop_start : drop_start + drop_sizes[idx]] = drop_region_real
+            flat_spec[0, drop_start: drop_start +
+                      drop_sizes[idx]] = drop_region_real
             flat_spec[
-                1, drop_start : drop_start + drop_sizes[idx]
+                1, drop_start: drop_start + drop_sizes[idx]
             ] = drop_region_complex
         elif fill == "low":
             drop_region = np.ones(drop_sizes[idx]) * 1e-3
-            flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
+            flat_spec[:, drop_start: drop_start +
+                      drop_sizes[idx]] = drop_region
         elif fill == "ones":
             drop_region = np.ones(drop_sizes[idx])
-            flat_spec[:, drop_start : drop_start + drop_sizes[idx]] = drop_region
+            flat_spec[:, drop_start: drop_start +
+                      drop_sizes[idx]] = drop_region
         else:
             raise ValueError(
                 "fill expects ffill, bfill, mean, zero, min, max, low, ones. Found {}".format(
                     fill
                 )
             )
-    new_tensor = flat_spec.reshape(tensor.shape[0], tensor.shape[1], tensor.shape[2])
+    new_tensor = flat_spec.reshape(
+        tensor.shape[0], tensor.shape[1], tensor.shape[2])
     return new_tensor
 
 
@@ -1545,16 +1598,16 @@ def spec_patch_shuffle(
         time_idx = patch_idx % num_time_patches
         patch = tensor[
             :,
-            int(freq_idx * patch_size) : int(freq_idx * patch_size + patch_size),
-            int(time_idx * patch_size) : int(time_idx * patch_size + patch_size),
+            int(freq_idx * patch_size): int(freq_idx * patch_size + patch_size),
+            int(time_idx * patch_size): int(time_idx * patch_size + patch_size),
         ]
         patch = patch.reshape(int(2 * patch_size * patch_size))
         np.random.shuffle(patch)
         patch = patch.reshape(2, int(patch_size), int(patch_size))
         tensor[
             :,
-            int(freq_idx * patch_size) : int(freq_idx * patch_size + patch_size),
-            int(time_idx * patch_size) : int(time_idx * patch_size + patch_size),
+            int(freq_idx * patch_size): int(freq_idx * patch_size + patch_size),
+            int(time_idx * patch_size): int(time_idx * patch_size + patch_size),
         ] = patch
     return tensor
 
@@ -1582,28 +1635,34 @@ def spec_translate(
 
     """
     # Pre-fill the data with background noise
-    new_tensor = np.random.rand(*tensor.shape) * np.percentile(np.abs(tensor), 50)
+    new_tensor = np.random.rand(*tensor.shape) * \
+        np.percentile(np.abs(tensor), 50)
 
     # Apply translation
     channels, height, width = tensor.shape
     if time_shift >= 0 and freq_shift >= 0:
         valid_dur = width - time_shift
         valid_bw = height - freq_shift
-        new_tensor[:, freq_shift:, time_shift:] = tensor[:, :valid_bw, :valid_dur]
+        new_tensor[:, freq_shift:,
+                   time_shift:] = tensor[:, :valid_bw, :valid_dur]
     elif time_shift < 0 and freq_shift >= 0:
         valid_dur = width + time_shift
         valid_bw = height - freq_shift
-        new_tensor[:, freq_shift:, :valid_dur] = tensor[:, :valid_bw, -time_shift:]
+        new_tensor[:, freq_shift:, :valid_dur] = tensor[:,
+                                                        :valid_bw, -time_shift:]
     elif time_shift >= 0 and freq_shift < 0:
         valid_dur = width - time_shift
         valid_bw = height + freq_shift
-        new_tensor[:, :valid_bw, time_shift:] = tensor[:, -freq_shift:, :valid_dur]
+        new_tensor[:, :valid_bw, time_shift:] = tensor[:, -
+                                                       freq_shift:, :valid_dur]
     elif time_shift < 0 and freq_shift < 0:
         valid_dur = width + time_shift
         valid_bw = height + freq_shift
-        new_tensor[:, :valid_bw, :valid_dur] = tensor[:, -freq_shift:, -time_shift:]
+        new_tensor[:, :valid_bw, :valid_dur] = tensor[:, -
+                                                      freq_shift:, -time_shift:]
 
     return new_tensor
+
 
 def spectrogram_image(
     tensor: np.ndarray,
@@ -1624,7 +1683,7 @@ def spectrogram_image(
     img = np.zeros((spec.shape[0], spec.shape[1], 3), dtype=np.float32)
     img = cv2.normalize(spec, img, 0, 255, cv2.NORM_MINMAX)
     img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2BGR)
-    
+
     if black_hot:
         img = cv2.bitwise_not(img, img)
 

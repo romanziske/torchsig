@@ -3,7 +3,7 @@
 
 from torchsig.utils.types import SignalData, ModulatedRFMetadata, Signal
 from torchsig.datasets.signal_classes import torchsig_signals
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 from torchsig.transforms import Identity
 from torchsig.datasets import conf
 from pathlib import Path
@@ -46,8 +46,10 @@ class TorchSigNarrowband:
 
     """
 
-    _idx_to_name_dict = dict(zip(range(len(torchsig_signals.class_list)), torchsig_signals.class_list))
-    _name_to_idx_dict = dict(zip(torchsig_signals.class_list, range(len(torchsig_signals.class_list))))
+    _idx_to_name_dict = dict(
+        zip(range(len(torchsig_signals.class_list)), torchsig_signals.class_list))
+    _name_to_idx_dict = dict(
+        zip(torchsig_signals.class_list, range(len(torchsig_signals.class_list))))
 
     @staticmethod
     def convert_idx_to_name(idx: int) -> str:
@@ -87,7 +89,8 @@ class TorchSigNarrowband:
         cfg = getattr(conf, cfg)()  # type: ignore
 
         self.path = self.root / cfg.name
-        self.env = lmdb.Environment(str(self.path).encode(), map_size=int(1e12), max_dbs=2, lock=False)
+        self.env = lmdb.Environment(
+            str(self.path).encode(), map_size=int(1e12), max_dbs=2, lock=False)
         self.data_db = self.env.open_db(b"data")
         self.label_db = self.env.open_db(b"label")
         with self.env.begin(db=self.data_db) as data_txn:
@@ -96,7 +99,7 @@ class TorchSigNarrowband:
     def __len__(self) -> int:
         return self.length
 
-    def __getitem__(self, idx: int) -> Tuple[np.ndarray, Any]:
+    def __getitem__(self, idx: int) -> Union[Tuple[np.ndarray, Any], Tuple[List[np.ndarray], List[Any]]]:
         encoded_idx = pickle.dumps(idx)
         with self.env.begin(db=self.data_db) as data_txn:
             iq_data = pickle.loads(data_txn.get(encoded_idx))
@@ -126,11 +129,32 @@ class TorchSigNarrowband:
         signal_data: SignalData = SignalData(samples=iq_data)
         signal = Signal(data=signal_data, metadata=[signal_meta])
         if self.use_signal_data:
-            signal = self.T(signal)  # type: ignore
-            target = self.TT(signal["metadata"])  # type: ignore
-            return signal["data"]["samples"], target
+            transformed = self.T(signal)
 
-        signal = self.T(signal)  # type: ignore
-        target = (self.TT(mod), snr)  # type: ignore
+            # Handle multiview case
+            if isinstance(transformed, list):
+                samples = []
+                for view in transformed:
+                    target = self.TT(view["metadata"])
+                    samples.append(view["data"]["samples"])
 
-        return signal["data"]["samples"], target
+                return samples, target
+
+            # Single view case
+            target = self.TT(transformed["metadata"])
+            return transformed["data"]["samples"], target
+
+        # Regular mode
+        transformed = self.T(signal)
+
+        # Handle multiview case
+        if isinstance(transformed, list):
+            samples = []
+            for view in transformed:
+                target = (self.TT(view["metadata"][0]["class_index"]), snr)
+                samples.append(view["data"]["samples"])
+            return samples, target
+
+        # Single view case
+        target = (self.TT(transformed["metadata"][0]["class_index"]), snr)
+        return transformed["data"]["samples"], target
