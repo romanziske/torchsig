@@ -1,7 +1,7 @@
 """Signal Transforms on metadata/label
 """
 
-from torchsig.utils.types import SignalMetadata, RFMetadata, ModulatedRFMetadata
+from torchsig.utils.types import SignalMetadata
 from torchsig.utils.types import (
     meta_bound_frequency,
     is_rf_metadata,
@@ -19,6 +19,7 @@ __all__ = [
     "DescToClassName",
     "DescToClassNameSNR",
     "DescToFamilyName",
+    "DescToFamilyIndex",
     "DescToClassIndex",
     "DescToClassIndexSNR",
     "DescToMask",
@@ -138,6 +139,50 @@ class DescToFamilyName(Transform):
             return families[0]
 
         return []
+
+
+class DescToFamilyIndex(Transform):
+    """Transform to convert signal metadata family names to indices"""
+
+    class_family_dict: Dict[str, str] = torchsig_signals.family_dict
+
+    def __init__(
+        self,
+        class_family_dict: Optional[Dict[str, str]] = None,
+        family_list: Optional[List[str]] = None
+    ) -> None:
+        super(DescToFamilyIndex, self).__init__()
+        self.class_family_dict = (
+            class_family_dict if class_family_dict else self.class_family_dict
+        )
+        self.family_list = (
+            family_list
+            if family_list
+            else sorted(list(set(self.class_family_dict.values())))
+        )
+
+    def __call__(self, metadata: List[SignalMetadata]) -> Union[List[int], int]:
+        families = []
+        for meta in metadata:
+            if isinstance(meta["class_name"], list):
+                families.extend(
+                    self.family_list.index(self.class_family_dict[m])
+                    for m in meta["class_name"]
+                )
+            else:
+                families.append(
+                    self.family_list.index(
+                        self.class_family_dict[meta["class_name"]]
+                    )
+                )
+
+        if len(families) > 1:
+            return families
+
+        if len(families) == 1:
+            return families[0]
+
+        return -1  # Return -1 for empty case
 
 
 class DescToClassNameSNR(Transform):
@@ -1298,7 +1343,7 @@ class DescToListTuple(Transform):
     for each signal present
 
     Args:
-        precision (np.dtype, optional): 
+        precision (np.dtype, optional):
         Specify the data type precision for the tuple's information. Defaults to np.dtype(np.float64).
     """
 
@@ -1420,7 +1465,7 @@ class ListTupleToYOLO(Transform):
         ->
         (class: int, x: float, y: float, width: int, height: int)
 
-        See Ultralytics for more information: 
+        See Ultralytics for more information:
         https://docs.ultralytics.com/yolov5/tutorials/train_custom_data/#22-create-labels
 
         Args:
