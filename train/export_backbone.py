@@ -1,46 +1,47 @@
 
 
+import os
 import torch
-from torchsig.datasets.torchsig_narrowband import TorchSigNarrowband
-from torchsig.models.iq_models.resnet.resnet1d import ResNet1d
-from torchsig.models.ssl_models.byol import BYOL
+from config import TrainingConfig
+from utils import get_ssl_model, parse_args, print_config
 
 
-def export_backbone():
-    # number of features for the embedding
-    n_features = 2048
-
-    class_list = list(TorchSigNarrowband._idx_to_name_dict.values())
-    num_classes = len(class_list)
-    batch_size = 16
-
-    backbone = ResNet1d(
-        input_channels=2,
-        n_features=n_features,
-        resnet_version="50",
+def get_backbone_filename(config: TrainingConfig) -> str:
+    return (
+        f"backbone"
+        f"-{config.backbone}"
+        f"-{config.dataset}"
+        f"-{'spec' if config.spectrogram else 'iq'}"
+        f"-nf{config.n_features}"
+        f".pth"
     )
 
-    ssl_model = BYOL(
-        backbone=backbone,
-        num_ftrs=n_features,
-        hidden_dim=4096,
-        out_dim=256,
-        num_classes=num_classes,
-        batch_size_per_device=batch_size,
-        use_online_linear_eval=True,
-    )
+
+def export_backbone(config: TrainingConfig):
+    if config.checkpoint is None:
+        raise ValueError("Checkpoint not provided")
+
+    checkpoint_path = os.path.join(config.training_path, config.checkpoint)
+
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"Checkpoint {checkpoint_path} not found")
+
+    ssl_model = get_ssl_model(config)
     # load model weights from checkpoint
-    checkpoint = torch.load(
-        "train/byol/lightning_logs/version_0/byol-ResNet-epoch=88-train_loss=-3.99.ckpt",
-    )
+    checkpoint = torch.load(checkpoint_path)
     ssl_model.load_state_dict(checkpoint["state_dict"])
 
     # export the backbone
-    torch.save(ssl_model.backbone.state_dict(), "backbone.pth")
+    torch.save(
+        ssl_model.backbone.state_dict(),
+        get_backbone_filename(config),
+    )
 
     print("Backbone exported successfully")
 
 
 if __name__ == "__main__":
 
-    export_backbone()
+    config = parse_args()
+    print_config(config)
+    export_backbone(config)

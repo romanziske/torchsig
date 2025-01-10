@@ -48,6 +48,7 @@ __all__ = [
     "InterleaveComplex",
     "ComplexTo2D",
     "ToTensor",
+    "ToSpectrogramTensor",
     "Real",
     "Imag",
     "ComplexMagnitude",
@@ -1196,6 +1197,28 @@ class ToTensor(SignalTransform):
         signal["data"]["samples"] = torch.from_numpy(
             signal["data"]["samples"].astype(np.float32)
         )
+        return signal
+
+
+class ToSpectrogramTensor(SignalTransform):
+    """Converts a numpy array to a PyTorch tensor to shape (C, X, Y), where C is the number of channels (1), X is the number of time steps and y is the number of frequency bins.
+    """
+
+    def __init__(
+        self,
+    ) -> None:
+        super(ToSpectrogramTensor, self).__init__()
+
+    def transform_data(self, signal: Signal, params: tuple) -> Signal:
+        # check if data is in spectrogram format
+        if len(signal["data"]["samples"].shape) != 2:
+            raise ValueError("Data must be in spectrogram format (2D)")
+
+        # convert to torch tensor
+        output = torch.from_numpy(signal["data"]["samples"].astype(np.float32))
+
+        # add channel dimension
+        signal["data"]["samples"] = output.unsqueeze(0)
         return signal
 
 
