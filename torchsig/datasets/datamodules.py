@@ -52,7 +52,6 @@ class TorchSigDataModule(LightningDataModule):
             collate_fn (Optional[Callable], optional): Dataloader custom collate function. Defaults to TorchSig collate_fn.
         """
         super().__init__()
-
         self.root = root
         self.dataset = dataset
         self.impaired = impaired

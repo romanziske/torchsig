@@ -91,9 +91,9 @@ def get_tensor_transform(config: Union[TrainingConfig, EvaluationConfig]) -> Tra
         return Compose(
             [
                 Spectrogram(
-                    nperseg=512,
+                    nperseg=config.nfft,
                     noverlap=0,
-                    nfft=512,
+                    nfft=config.nfft,
                     mode='psd',
                 ),
                 Normalize(norm=np.inf, flatten=True),

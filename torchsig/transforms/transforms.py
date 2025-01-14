@@ -805,6 +805,7 @@ class TargetSNR(SignalTransform):
 
         signal["data"]["samples"] = F.awgn(
             signal["data"]["samples"], noise_power_db)
+
         return signal
 
     def transform_meta(self, signal: Signal, params: tuple) -> Signal:

@@ -2,6 +2,7 @@
 """
 from dataclasses import dataclass
 
+
 @dataclass
 class NarrowbandConfig:
     name: str
@@ -9,7 +10,7 @@ class NarrowbandConfig:
     level: int
     seed: int
     eb_no: bool
-    num_iq_samples: int = 4096
+    num_iq_samples: int = 4096*pow(2, 4)
     use_class_idx: bool = True
     include_snr: bool = True
 
@@ -22,14 +23,17 @@ class NarrowbandCleanTrainConfig(NarrowbandConfig):
     num_samples: int = 1_060_000
     level: int = 0
 
+
 @dataclass
 class NarrowbandCleanEbNoTrainConfig(NarrowbandCleanTrainConfig):
     eb_no: bool = True
 
+
 @dataclass
 class NarrowbandCleanTrainQAConfig(NarrowbandCleanTrainConfig):
     num_samples: int = 10_600
-    
+
+
 @dataclass
 class NarrowbandCleanEbNoTrainQAConfig(NarrowbandCleanTrainQAConfig):
     eb_no: bool = True
@@ -42,13 +46,16 @@ class NarrowbandCleanValConfig(NarrowbandCleanTrainConfig):
     eb_no: bool = False
     num_samples: int = 10_600
 
+
 @dataclass
 class NarrowbandCleanEbNoValConfig(NarrowbandCleanValConfig):
     eb_no: bool = True
 
+
 @dataclass
 class NarrowbandCleanValQAConfig(NarrowbandCleanValConfig):
     num_samples: int = 1060
+
 
 @dataclass
 class NarrowbandCleanEbNoValQAConfig(NarrowbandCleanValQAConfig):
@@ -66,7 +73,7 @@ class NarrowbandImpairedTrainConfig(NarrowbandConfig):
 
 @dataclass
 class NarrowbandImpairedTrainQAConfig(NarrowbandImpairedTrainConfig):
-    num_samples: int = 10_600
+    num_samples: int = 1060
 
 
 @dataclass
@@ -114,7 +121,7 @@ class WidebandConfig:
     num_samples: int
     level: int
     seed: int
-    num_iq_samples: int = int(512 * 512)
+    num_iq_samples: int = int(512 * 256)
     overlap_prob: float = 0.0
 
 
@@ -124,12 +131,12 @@ class WidebandCleanTrainConfig(WidebandConfig):
     seed: int = 1234567890
     num_samples: int = 250_000
     level: int = 1
-    overlap_prob:float = 0.0
+    overlap_prob: float = 0.0
 
 
 @dataclass
 class WidebandCleanTrainQAConfig(WidebandCleanTrainConfig):
-    num_samples: int = 250
+    num_samples: int = 2500
 
 
 @dataclass
