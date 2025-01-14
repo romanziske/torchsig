@@ -6,7 +6,7 @@ from typing import Literal, Optional
 class TrainingConfig:
     # Dataset config
     dataset: Literal['narrowband', 'wideband'] = 'narrowband'
-    root: str = './datasets/narrowband_test_QA'
+    root: str = './datasets/narrowband'
     batch_size: int = 16
     num_workers: int = 0
     qa: bool = True
@@ -19,6 +19,7 @@ class TrainingConfig:
     out_dim: int = 256
     ssl_model: Literal['byol'] = 'byol'
     backbone: Literal['resnet50'] = 'resnet50'
+    online_linear_eval: bool = False
 
     # Training config
     training_path: str = './train'
@@ -26,7 +27,7 @@ class TrainingConfig:
     spectrogram: bool = False
 
     # Export config
-    checkpoint: Optional[str] = None
+    checkpoint: str = 'best'
 
 
 @dataclass
@@ -39,7 +40,7 @@ class EvaluationConfig:
 
     # dataset config
     dataset: Literal['narrowband', 'wideband'] = 'narrowband'
-    root: str = './datasets/narrowband_test_QA'
+    root: str = './datasets/narrowband'
     batch_size: int = 16
     num_workers: int = 0
     qa: bool = True

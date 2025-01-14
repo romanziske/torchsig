@@ -78,10 +78,20 @@ class TorchSigWideband:
 
         signal = Signal(data=create_signal_data(
             samples=iq_data), metadata=(label))
-        signal = self.T(signal)  # type: ignore
-        target = self.TT(signal["metadata"])  # type: ignore
+        transformed = self.T(signal)
 
-        return signal["data"]["samples"], target
+        # Handle multiview case
+        if isinstance(transformed, list):
+            samples = []
+            for view in transformed:
+                target = self.TT(view["metadata"])
+                samples.append(view["data"]["samples"])
+
+            return samples, target
+
+        # Single view case
+        target = self.TT(transformed["metadata"])
+        return transformed["data"]["samples"], target
 
     def _init_lmdb(self):
         """Initialize LMDB environment - called in __init__ and after unpickling"""

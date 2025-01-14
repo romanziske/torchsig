@@ -21,20 +21,21 @@ class TorchSigDataModule(LightningDataModule):
         Subclasses must implement `prepare_data`, `setup` functions.
     """
 
-    def __init__(self,
-                 root: str,
-                 dataset: str,
-                 impaired: bool,
-                 qa: bool = True,
-                 eb_no: bool = False,
-                 seed: int = 12345,
-                 overlap_prob: Optional[float] = .1,
-                 transform: Optional[Callable] = None,
-                 target_transform: Optional[Callable] = None,
-                 batch_size: int = 4,
-                 num_workers: int = 1,
-                 collate_fn: Optional[Callable] = None,
-                 ):
+    def __init__(
+        self,
+        root: str,
+        dataset: str,
+        impaired: bool,
+        qa: bool = True,
+        eb_no: bool = False,
+        seed: int = 12345,
+        overlap_prob: Optional[float] = .1,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        batch_size: int = 4,
+        num_workers: int = 1,
+        collate_fn: Optional[Callable] = None,
+    ):
         """TorchSig DataModule Init
 
         Args:
@@ -280,7 +281,7 @@ class WidebandDataModule(TorchSigDataModule):
                  target_transform: Optional[Callable] = None,
                  batch_size: int = 4,
                  num_workers: int = 1,
-                 collate_fn: Optional[Callable] = None
+                 collate_fn: Optional[Callable] = None,
                  ):
         """TorchSigWideband DataModule Init
 
@@ -318,7 +319,7 @@ class WidebandDataModule(TorchSigDataModule):
             num_samples=self.train_config.num_samples,
             num_iq_samples=self.train_config.num_iq_samples,
             seed=self.train_config.seed,
-            overlap_prob=self.overlap_prob
+            overlap_prob=self.overlap_prob,
         )
 
         ds_val = WidebandModulationsDataset(

@@ -3,6 +3,7 @@ from lightning.pytorch import Trainer, callbacks
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from config import TrainingConfig
+from callbacks import ModelAndBackboneCheckpoint
 from utils import get_dataset, get_device, get_ssl_model, parse_args, print_config
 
 
@@ -10,6 +11,10 @@ def train(config: TrainingConfig):
 
     device = get_device()
     datamodule = get_dataset(config)
+
+    if not config.online_linear_eval:
+        datamodule.val_dataloader = None
+
     ssl_model = get_ssl_model(config)
 
     # Configure TensorBoardLogger
@@ -18,14 +23,14 @@ def train(config: TrainingConfig):
     )
 
     # Configure ModelCheckpoint
-    checkpoint_callback = callbacks.ModelCheckpoint(
+    checkpoint_callback = ModelAndBackboneCheckpoint(
         dirpath=f"{logger.save_dir}/lightning_logs/version_{logger.version}",
         filename=(
             f"{config.ssl_model}"
             f"-{config.backbone}"
             f"-{config.dataset}"
             f"-{'spec' if config.spectrogram else 'iq'}"
-            f"-e{{epoch:03d}}"
+            f"-e{{epoch:d}}"
             f"-b{config.batch_size}"
             f"-loss{{train_loss:.3f}}"
         ),
@@ -40,7 +45,7 @@ def train(config: TrainingConfig):
         devices=1,
         accelerator=device.type,
         callbacks=[checkpoint_callback],
-        logger=logger
+        logger=logger,
     )
 
     trainer.fit(model=ssl_model, datamodule=datamodule)

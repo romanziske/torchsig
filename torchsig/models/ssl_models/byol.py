@@ -119,12 +119,17 @@ class BYOL(LightningModule):
 
     def validation_step(
             self, batch: Tuple[Tensor, Tensor, List[str]], batch_idx: int) -> Tensor:
+
+        if not self.use_online_linear_eval:
+            return
+
         # get views and targets from batch
         views, targets = batch[0], batch[1]
 
         x0 = views[0]
 
         features = self.forward(x0).flatten(start_dim=1)
+
         cls_loss, cls_log = self.online_classifier.validation_step(
             (features.detach(), targets), batch_idx
         )

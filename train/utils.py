@@ -5,14 +5,14 @@ from typing import Any, Literal, Union
 import numpy as np
 import torch
 
-from torchsig.datasets.datamodules import NarrowbandDataModule, TorchSigDataModule
+from torchsig.datasets.datamodules import NarrowbandDataModule, TorchSigDataModule, WidebandDataModule
 from torchsig.datasets.signal_classes import torchsig_signals
 from torchsig.models.iq_models.resnet.resnet1d import ResNet1d
 from torchsig.models.spectrogram_models.resnet.resnet import resnet
 from torchsig.models.ssl_models.byol import BYOL
 from torchsig.transforms.byol_transform import BYOLTransform
 from torchsig.transforms.target_transforms import DescToClassIndex, DescToFamilyIndex
-from torchsig.transforms.transforms import ComplexTo2D, Compose, Normalize, Spectrogram, ToSpectrogramTensor, ToTensor, Transform
+from torchsig.transforms.transforms import ComplexTo2D, Compose, Identity, Lambda, Normalize, Spectrogram, ToSpectrogramTensor, ToTensor, Transform
 
 from config import EvaluationConfig, TrainingConfig
 
@@ -21,6 +21,7 @@ def collate_fn(batch: Any) -> tuple[tuple[torch.Tensor, torch.Tensor], torch.Ten
     """Custom collate for 2 views"""
 
     views, targets = zip(*batch)
+
     view1s, view2s = zip(*views)
 
     return (
@@ -44,7 +45,6 @@ def collate_fn_evaluation(batch):
 
 def get_collate_fn(config: Union[TrainingConfig, EvaluationConfig]):
 
-    print(config)
     if isinstance(config, EvaluationConfig):
         return collate_fn_evaluation
     else:
@@ -126,6 +126,12 @@ def get_target_transform(config: Union[TrainingConfig, EvaluationConfig]):
             return DescToFamilyIndex()
         return DescToClassIndex(class_list=get_class_list(config))
 
+    if config.dataset == 'wideband':
+        # for wideband dataset we don't need target transform, because we can
+        # not use it for online linear evaluation
+
+        return Lambda(lambda x: 0)
+
 
 def get_dataset(config: TrainingConfig) -> TorchSigDataModule:
 
@@ -142,6 +148,20 @@ def get_dataset(config: TrainingConfig) -> TorchSigDataModule:
             target_transform=target_transform,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
+            collate_fn=get_collate_fn(config),
+        )
+
+    if config.dataset == 'wideband':
+
+        return WidebandDataModule(
+            root=config.root,
+            qa=config.qa,
+            impaired=config.impaired,
+            transform=transform,
+            target_transform=target_transform,
+            batch_size=config.batch_size,
+            num_workers=config.num_workers,
+            num_classes=len(get_class_list(config)),
             collate_fn=get_collate_fn(config),
         )
 
@@ -173,7 +193,7 @@ def get_ssl_model(config: TrainingConfig) -> torch.nn.Module:
             hidden_dim=config.hidden_dim,
             out_dim=config.out_dim,
             batch_size_per_device=config.batch_size,
-            use_online_linear_eval=True,
+            use_online_linear_eval=config.online_linear_eval,
             num_classes=len(get_class_list(config)),
         )
 

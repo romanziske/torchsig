@@ -38,7 +38,7 @@ def evaluate(config: EvaluationConfig):
     labels = []
 
     datamodule.setup("fit")
-    val_dataloader = datamodule.val_dataloader()
+    val_dataloader = datamodule.train_dataloader()
     with torch.no_grad():  # No gradient needed
 
         for x, targets in tqdm(val_dataloader):
