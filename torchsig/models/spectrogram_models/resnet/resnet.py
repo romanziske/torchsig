@@ -1,8 +1,6 @@
 import timm
 from torch.nn import Linear
 
-from torchsig.models.model_utils.model_utils_1d.conversions_to_1d import convert_2d_model_to_1d
-
 __all__ = ["resnet"]
 
 
