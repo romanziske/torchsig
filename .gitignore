@@ -26,3 +26,6 @@ examples/runs
 examples/datasets
 examples/yolo
 examples/plots
+datasets
+# ignore ds_store
+.DS_Store

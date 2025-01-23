@@ -1680,9 +1680,8 @@ def spectrogram_image(
             array.
     """
     spec = 10 * np.log10(tensor+np.finfo(np.float32).tiny)
-    img = np.zeros((spec.shape[0], spec.shape[1], 3), dtype=np.float32)
-    img = cv2.normalize(spec, img, 0, 255, cv2.NORM_MINMAX)
-    img = cv2.cvtColor(img.astype(np.uint8), cv2.COLOR_GRAY2BGR)
+    img = cv2.normalize(spec, None, 0, 255, cv2.NORM_MINMAX)
+    img = img.astype(np.uint8)
 
     if black_hot:
         img = cv2.bitwise_not(img, img)

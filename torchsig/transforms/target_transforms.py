@@ -1067,6 +1067,37 @@ class DescToBBoxYoloDict(Transform):
         }
         return targets
 
+class DescToBBoxCOCO(Transform):
+    def __init__(self, class_list: List[str]) -> None:
+        super().__init__()
+        self.class_list = class_list
+        
+    def __call__(self, metadata: List[SignalMetadata]) -> Dict[str, torch.Tensor]:
+        labels: List[int] = []
+        boxes: np.ndarray = np.empty((len(metadata), 4))
+        
+        for meta_idx, meta in enumerate(metadata):
+            if not is_rf_modulated_metadata(meta):
+                continue
+
+            duration: float = meta["stop"] - meta["start"]
+            bandwidth: float = meta["upper_freq"] - meta["lower_freq"]
+            boxes[meta_idx] = np.array(
+                [
+                    meta["start"],
+                    meta["lower_freq"] + 0.5,
+                    duration,
+                    bandwidth,
+                ]
+            )
+
+            labels.append(self.class_list.index(meta["class_name"]))
+
+        targets: Dict[str, torch.Tensor] = {
+            "labels": torch.Tensor(labels).long(),
+            "boxes": torch.Tensor(boxes),
+        }
+        return targets
 
 class DescToBBoxFamilyDict(Transform):
     """Transform to transform SignalMetadatas into the class bounding box format

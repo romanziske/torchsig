@@ -675,8 +675,7 @@ class RandomResample(SignalTransform):
             new_rate = np.max(ret_list)
         except Exception as error:
             for meta in signal['metadata']:
-                print(f"{meta['lower_freq']} {
-                      meta['upper_freq']} {meta['class_name']}")
+                print(f"{meta['lower_freq']} {meta['upper_freq']} {meta['class_name']}")
             print(error)
             raise ValueError("Unable to run: new_rate = np.max(ret_list)")
 

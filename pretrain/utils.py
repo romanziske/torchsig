@@ -172,7 +172,8 @@ def get_backbone(config: Union[TrainingConfig, EvaluationConfig]) -> torch.nn.Mo
             return resnet(
                 input_channels=1,
                 n_features=config.n_features,
-                resnet_version="50"
+                resnet_version="50",
+                from_lib="detectron2"
             )
         else:
             return ResNet1d(
