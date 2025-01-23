@@ -46,8 +46,8 @@ class WidebandToSpectrogramCOCO:
 
         self.datamodule = WidebandDataModule(
             root=self.root_dir,
-            qa=False,
-            impaired=False,
+            qa=True,
+            impaired=True,
             transform=transform,
             target_transform=target_transform,
             batch_size=2,
@@ -55,6 +55,7 @@ class WidebandToSpectrogramCOCO:
             num_classes=len(self.class_list),
             collate_fn=collate_fn
         )
+        self.datamodule.prepare_data()
         self.datamodule.setup("fit")
 
     def convert(self, split: Literal["train", "val"]) -> Path:

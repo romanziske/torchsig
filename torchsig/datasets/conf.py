@@ -155,7 +155,7 @@ class WidebandCleanValQAConfig(WidebandCleanValConfig):
 class WidebandImpairedTrainConfig(WidebandConfig):
     name: str = "wideband_impaired_train"
     seed: int = 1234567892
-    num_samples: int = 250_000
+    num_samples: int = 2500
     level: int = 2
     overlap_prob: float = 0.1
 

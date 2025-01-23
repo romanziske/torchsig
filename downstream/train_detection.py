@@ -10,9 +10,9 @@ from detectron2.data.datasets import register_coco_instances
 from detectron2 import model_zoo
 from detectron2.modeling import build_model
 from detectron2.data import build_detection_train_loader
-from detectron2.data import DatasetMapper
-from detectron2.structures import Instances, BoxMode, Boxes
 from detectron2.data import detection_utils
+
+from to_coco_dataset import WidebandToSpectrogramCOCO
 
 
 def mapper(dataset_dict):
@@ -44,21 +44,32 @@ class Trainer(DefaultTrainer):
         )
 
 
-def train_detector():
+def setup_datasets():
+
+    # generate wideband dataset and convert it to COCO format
+    converter = WidebandToSpectrogramCOCO("datasets/wideband_torchsig")
+
+    converter.convert("train")
+    converter.convert("val")
 
     # Register dataset
     register_coco_instances(
         "wideband_train",
         {},
-        "datasets/wideband/coco/annotations/instances_train.json",
-        "datasets/wideband/coco/train"
+        "datasets/wideband_torchsig/coco/annotations/instances_train.json",
+        "datasets/wideband_torchsig/coco/train"
     )
     register_coco_instances(
         "wideband_val",
         {},
-        "datasets/wideband/coco/annotations/instances_val.json",
-        "datasets/wideband/coco/val"
+        "datasets/wideband_torchsig/coco/annotations/instances_val.json",
+        "datasets/wideband_torchsig/coco/val"
     )
+
+
+def train_detector():
+
+    setup_datasets()
 
     # Setup config
     cfg = get_cfg()
