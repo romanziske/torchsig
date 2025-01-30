@@ -97,9 +97,6 @@ def train_detector():
     # Save directory
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
-    model = build_model(cfg)
-    print(model)
-
     trainer = Trainer(cfg)
     trainer.resume_or_load(resume=False)
     trainer.train()

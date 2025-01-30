@@ -1,15 +1,20 @@
-import os
-from pathlib import Path
 import ray
 from ray.train.torch import TorchTrainer
 from ray.air import RunConfig, ScalingConfig
-from detectron2.data.datasets import register_coco_instances
 
 from train_detection import train_detector
 
 
 def train_on_ray():
-    ray.init()  # Connect to Ray cluster
+
+    ray.init(
+        address="ray://172.17.0.2:6379",
+        runtime_env={
+                "pip": [".", "git+https://github.com/facebookresearch/detectron2.git"],
+                "working_dir": ".",
+                "env_vars": {"PYTHONPATH": "/app"}
+        }
+    )
 
     trainer = TorchTrainer(
         train_loop_per_worker=train_detector,

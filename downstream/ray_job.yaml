@@ -1,0 +1,5 @@
+runtime_env:
+  pip:
+    - "." # Installs the current directory as a package
+    - "git+https://github.com/facebookresearch/detectron2.git" # Install detectron2 from GitHub
+  working_dir: "." # Makes sure Ray can access local files

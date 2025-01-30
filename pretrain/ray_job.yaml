@@ -1,0 +1,4 @@
+runtime_env:
+  pip:
+    - "." # Installs the current directory as a package
+  working_dir: "." # Makes sure Ray can access local files
