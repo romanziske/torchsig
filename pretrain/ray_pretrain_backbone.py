@@ -1,4 +1,3 @@
-
 import ray
 from ray.train.torch import TorchTrainer
 from ray.air import RunConfig, ScalingConfig
