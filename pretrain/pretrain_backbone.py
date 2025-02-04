@@ -1,5 +1,5 @@
 import os
-from lightning.pytorch import Trainer, callbacks
+from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from config import TrainingConfig
