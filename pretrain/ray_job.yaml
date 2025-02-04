@@ -1,4 +1,13 @@
-runtime_env:
-  pip:
-    - "." # Installs the current directory as a package
-  working_dir: "." # Makes sure Ray can access local files
+py_modules:
+  - "torchsig-0.6.0-py3-none-any.whl" # Installs the current directory as a package
+  - "detectron2-0.6-cp311-cp311-linux_x86_64.whl"
+pip:
+  - "lightly"
+  - "httpcore==0.15"
+  - "wandb"
+  - "lightning"
+  - "timm"
+  - "minio"
+working_dir: "." # Makes sure Ray can access local files
+env_vars:
+  CUDA_VISIBLE_DEVICES: "1"

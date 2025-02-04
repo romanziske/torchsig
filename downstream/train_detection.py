@@ -1,10 +1,10 @@
 import copy
 import os
-import cv2
-import numpy as np
+from pathlib import Path
+from minio import Minio
 import torch
-import torch.nn as nn
-from detectron2.engine import DefaultTrainer
+
+from detectron2.engine import DefaultTrainer, launch
 from detectron2.config import get_cfg
 from detectron2.data.datasets import register_coco_instances
 from detectron2 import model_zoo
@@ -46,24 +46,69 @@ class Trainer(DefaultTrainer):
 
 def setup_datasets():
 
+    client = Minio(
+        os.environ['MINIO_URL'],
+        access_key=os.environ['MINIO_ACCESS_KEY'],
+        secret_key=os.environ['MINIO_SECRET_ACCESS_KEY'],
+        cert_check=True
+    )
+ 
+    minio_prefix = Path("datasets/torchsig_wideband_2500_impaired")
+    cwd_path = Path(__file__).resolve().parent
+    datasets_path = os.path.join(cwd_path, "datasets", "wideband_torchsig")
+ 
+    try:
+ 
+        files = [
+            "wideband_impaired_train/lock.mdb",
+            "wideband_impaired_train/data.mdb",
+            "wideband_impaired_val/lock.mdb",
+            "wideband_impaired_val/data.mdb"
+        ]
+         
+        for f in files:
+             
+            client.fget_object(
+                bucket_name="iqdm-ai",
+                object_name=os.path.join(minio_prefix, f).replace("\\", "/"),
+                file_path=os.path.join(datasets_path, f),
+            )
+            
+            print("Downloaded ", os.path.join(datasets_path, f))
+            
+    except Exception as e:
+        print(e)
+
     # generate wideband dataset and convert it to COCO format
-    converter = WidebandToSpectrogramCOCO("datasets/wideband_torchsig")
+    converter = WidebandToSpectrogramCOCO(root_dir=datasets_path)
 
     converter.convert("train")
     converter.convert("val")
 
+    coco_train_path = os.path.join(datasets_path, "coco/train")
+    print(coco_train_path)
+    coco_train_json_path = os.path.join(datasets_path, "coco/annotations/instances_train.json")
+    print(coco_train_json_path)
+
+    coco_val_path = os.path.join(datasets_path, "coco/val")
+    print(coco_val_path)
+
+    coco_val_json_path = os.path.join(datasets_path, "coco/annotations/instances_val.json")
+    print(coco_val_json_path)
+    
     # Register dataset
+
     register_coco_instances(
         "wideband_train",
         {},
-        "datasets/wideband_torchsig/coco/annotations/instances_train.json",
-        "datasets/wideband_torchsig/coco/train"
+        coco_train_json_path,
+        coco_train_path
     )
     register_coco_instances(
         "wideband_val",
         {},
-        "datasets/wideband_torchsig/coco/annotations/instances_val.json",
-        "datasets/wideband_torchsig/coco/val"
+        coco_val_json_path,
+        coco_val_path
     )
 
 
@@ -82,17 +127,20 @@ def train_detector():
     # Model parameters
     cfg.MODEL.WEIGHTS = ""
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 61  # Number of signal classes
-    cfg.MODEL.DEVICE = "cpu"
+    cfg.MODEL.DEVICE = "cuda"
     cfg.INPUT.FORMAT = "L"
     cfg.MODEL.PIXEL_MEAN = [128.0]  # Center data
     cfg.MODEL.PIXEL_STD = [128.0]   # Scale to ~[-1,1]
 
     # Training parameters
-    cfg.SOLVER.IMS_PER_BATCH = 4
-    cfg.SOLVER.BASE_LR = 0.02
+    cfg.SOLVER.IMS_PER_BATCH = 32
+    cfg.SOLVER.BASE_LR = 0.00025
+    cfg.SOLVER.WARMUP_ITERS = 4000
+
     cfg.SOLVER.MAX_ITER = 10000
-    cfg.SOLVER.STEPS = (7000, 9000)
-    cfg.SOLVER.CHECKPOINT_PERIOD = 1000
+    #cfg.SOLVER.STEPS = ()
+    #cfg.SOLVER.CHECKPOINT_PERIOD = 1000
+    cfg.SOLVER.CLIP_GRADIENTS.ENABLED = True
 
     # Save directory
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
@@ -100,7 +148,6 @@ def train_detector():
     trainer = Trainer(cfg)
     trainer.resume_or_load(resume=False)
     trainer.train()
-
 
 if __name__ == "__main__":
     train_detector()

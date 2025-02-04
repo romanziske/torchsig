@@ -46,12 +46,12 @@ class WidebandToSpectrogramCOCO:
 
         self.datamodule = WidebandDataModule(
             root=self.root_dir,
-            qa=True,
+            qa=False,
             impaired=True,
             transform=transform,
             target_transform=target_transform,
-            batch_size=2,
-            num_workers=0,
+            batch_size=8,
+            num_workers=4,
             num_classes=len(self.class_list),
             collate_fn=collate_fn
         )
