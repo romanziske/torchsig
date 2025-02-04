@@ -24,8 +24,8 @@ def visualize_coco_dataset():
     for d in random.sample(dataset_dicts, 3):
         img = detection_utils.read_image(d["file_name"], format="L")
 
-        print(f"Image shape: {img.shape}")
-        visualizer = Visualizer(img, metadata=metadata, scale=1.0)
+        visualizer = Visualizer(img, metadata=metadata,
+                                scale=1.0, instance_mode=0)
         vis = visualizer.draw_dataset_dict(d)
 
         # Show image
