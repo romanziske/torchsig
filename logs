@@ -1,0 +1,170 @@
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.data.datasets.coco]: Loaded 2500 images in COCO format from /tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/working_dir_files/_ray_pkg_253fd3e5e003c9ce/datasets/wideband_torchsig/coco/annotations/instances_train.json
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.data.build]: Removed 0 images with no usable annotations. 2500 images left.
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.data.build]: Distribution of instances among all 61 categories:
+(RayTrainWorker pid=20184) |   category   | #instances   |  category   | #instances   |   category   | #instances   |
+(RayTrainWorker pid=20184) |:------------:|:-------------|:-----------:|:-------------|:------------:|:-------------|
+(RayTrainWorker pid=20184) |     ook      | 238          |    bpsk     | 238          |     4pam     | 184          |
+(RayTrainWorker pid=20184) |     4ask     | 181          |    qpsk     | 216          |     8pam     | 241          |
+(RayTrainWorker pid=20184) |     8ask     | 158          |    8psk     | 215          |    16qam     | 180          |
+(RayTrainWorker pid=20184) |    16pam     | 215          |    16ask    | 221          |    16psk     | 157          |
+(RayTrainWorker pid=20184) |    32qam     | 171          | 32qam_cross | 211          |    32pam     | 243          |
+(RayTrainWorker pid=20184) |    32ask     | 219          |    32psk    | 231          |    64qam     | 199          |
+(RayTrainWorker pid=20184) |    64pam     | 231          |    64ask    | 171          |    64psk     | 191          |
+(RayTrainWorker pid=20184) | 128qam_cross | 221          |   256qam    | 225          | 512qam_cross | 207          |
+(RayTrainWorker pid=20184) |   1024qam    | 189          |    2fsk     | 276          |    2gfsk     | 198          |
+(RayTrainWorker pid=20184) |     2msk     | 193          |    2gmsk    | 203          |     4fsk     | 218          |
+(RayTrainWorker pid=20184) |    4gfsk     | 211          |    4msk     | 255          |    4gmsk     | 169          |
+(RayTrainWorker pid=20184) |     8fsk     | 218          |    8gfsk    | 270          |     8msk     | 195          |
+(RayTrainWorker pid=20184) |    8gmsk     | 207          |    16fsk    | 193          |    16gfsk    | 226          |
+(RayTrainWorker pid=20184) |    16msk     | 257          |   16gmsk    | 247          |   ofdm-64    | 98           |
+(RayTrainWorker pid=20184) |   ofdm-72    | 92           |  ofdm-128   | 86           |   ofdm-180   | 83           |
+(RayTrainWorker pid=20184) |   ofdm-256   | 78           |  ofdm-300   | 88           |   ofdm-512   | 108          |
+(RayTrainWorker pid=20184) |   ofdm-600   | 85           |  ofdm-900   | 104          |  ofdm-1024   | 91           |
+(RayTrainWorker pid=20184) |  ofdm-1200   | 86           |  ofdm-2048  | 89           |      fm      | 216          |
+(RayTrainWorker pid=20184) |  am-dsb-sc   | 167          |   am-dsb    | 211          |    am-lsb    | 247          |
+(RayTrainWorker pid=20184) |    am-usb    | 264          |  lfm_data   | 182          |  lfm_radar   | 198          |
+(RayTrainWorker pid=20184) |   chirpss    | 218          |             |              |              |              |
+(RayTrainWorker pid=20184) |    total     | 11480        |             |              |              |              |
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.data.build]: Using training sampler TrainingSampler
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.data.common]: Serializing the dataset using: <class 'detectron2.data.common._TorchSerializedList'>
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.data.common]: Serializing 2500 elements to byte tensors and concatenating them all ...
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.data.common]: Serialized dataset takes 1.12 MiB
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.data.build]: Making batched data loader with batch_size=32
+(RayTrainWorker pid=20184) WARNING [02/03 07:15:13 d2.solver.build]: SOLVER.STEPS contains values larger than SOLVER.MAX_ITER. These values will be ignored.
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.checkpoint.detection_checkpoint]: [DetectionCheckpointer] Loading from  ...
+(RayTrainWorker pid=20184) [02/03 07:15:13 d2.engine.train_loop]: Starting training from iteration 0
+(RayTrainWorker pid=20184) /tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/torchsig-0.6.0-py3-none-any/torch/functional.py:539: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at /pytorch/aten/src/ATen/native/TensorShape.cpp:3637.)
+(RayTrainWorker pid=20184)   return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+(RayTrainWorker pid=20184) [02/03 07:15:31 d2.utils.events]:  eta: 2:11:36  iter: 19  total_loss: 6.346  loss_cls: 5.189  loss_box_reg: 0.02312  loss_rpn_cls: 0.6752  loss_rpn_loc: 0.4378    time: 0.7860  last_time: 0.8070  data_time: 0.1309  last_data_time: 0.1625   lr: 1.4363e-06  max_mem: 4851M
+(RayTrainWorker pid=20184) 2025-02-03 07:15:32.114610: E external/local_xla/xla/stream_executor/cuda/cuda_dnn.cc:9261] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+(RayTrainWorker pid=20184) 2025-02-03 07:15:32.114652: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:607] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+(RayTrainWorker pid=20184) 2025-02-03 07:15:32.116415: E external/local_xla/xla/stream_executor/cuda/cuda_blas.cc:1515] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+(RayTrainWorker pid=20184) 2025-02-03 07:15:33.732624: W tensorflow/compiler/tf2tensorrt/utils/py_utils.cc:38] TF-TRT Warning: Could not find TensorRT
+(RayTrainWorker pid=20184) [02/03 07:15:50 d2.utils.events]:  eta: 2:11:52  iter: 39  total_loss: 2.481  loss_cls: 1.358  loss_box_reg: 0.02576  loss_rpn_cls: 0.6475  loss_rpn_loc: 0.4093    time: 0.7950  last_time: 0.8048  data_time: 0.1359  last_data_time: 0.1372   lr: 2.6851e-06  max_mem: 4852M
+(RayTrainWorker pid=20184) [02/03 07:16:07 d2.utils.events]:  eta: 2:12:55  iter: 59  total_loss: 1.583  loss_cls: 0.6289  loss_box_reg: 0.02909  loss_rpn_cls: 0.594  loss_rpn_loc: 0.348    time: 0.8049  last_time: 0.8370  data_time: 0.1279  last_data_time: 0.1120   lr: 3.9338e-06  max_mem: 4852M
+(RayTrainWorker pid=20184) ERROR [02/03 07:16:08 d2.engine.train_loop]: Exception in writing metrics:
+(RayTrainWorker pid=20184) Traceback (most recent call last):
+(RayTrainWorker pid=20184)   File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 370, in _write_metrics
+(RayTrainWorker pid=20184)     SimpleTrainer.write_metrics(loss_dict, data_time, iter, prefix)
+(RayTrainWorker pid=20184)   File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 412, in write_metrics
+(RayTrainWorker pid=20184)     raise FloatingPointError(
+(RayTrainWorker pid=20184) FloatingPointError: Loss became infinite or NaN at iteration=60!
+(RayTrainWorker pid=20184) loss_dict = {'loss_cls': 0.47748449444770813, 'loss_box_reg': 0.026896189898252487, 'loss_rpn_cls': 0.5629274845123291, 'loss_rpn_loc': inf}
+(RayTrainWorker pid=20184) ERROR [02/03 07:16:08 d2.engine.train_loop]: Exception during training:
+(RayTrainWorker pid=20184) Traceback (most recent call last):
+(RayTrainWorker pid=20184)   File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 155, in train
+(RayTrainWorker pid=20184)     self.run_step()
+(RayTrainWorker pid=20184)   File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/defaults.py", line 530, in run_step
+(RayTrainWorker pid=20184)     self._trainer.run_step()
+(RayTrainWorker pid=20184)   File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 332, in run_step
+(RayTrainWorker pid=20184)     self._write_metrics(loss_dict, data_time)
+(RayTrainWorker pid=20184)   File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 370, in _write_metrics
+(RayTrainWorker pid=20184)     SimpleTrainer.write_metrics(loss_dict, data_time, iter, prefix)
+(RayTrainWorker pid=20184)   File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 412, in write_metrics
+(RayTrainWorker pid=20184)     raise FloatingPointError(
+(RayTrainWorker pid=20184) FloatingPointError: Loss became infinite or NaN at iteration=60!
+(RayTrainWorker pid=20184) loss_dict = {'loss_cls': 0.47748449444770813, 'loss_box_reg': 0.026896189898252487, 'loss_rpn_cls': 0.5629274845123291, 'loss_rpn_loc': inf}
+(RayTrainWorker pid=20184) [02/03 07:16:08 d2.engine.hooks]: Overall training speed: 58 iterations in 0:00:47 (0.8199 s / it)
+(RayTrainWorker pid=20184) [02/03 07:16:08 d2.engine.hooks]: Total training time: 0:00:50 (0:00:03 on hooks)
+(RayTrainWorker pid=20184) [02/03 07:16:08 d2.utils.events]:  eta: 2:12:54  iter: 60  total_loss: 1.583  loss_cls: 0.6289  loss_box_reg: 0.02909  loss_rpn_cls: 0.594  loss_rpn_loc: 0.348    time: 0.8049  last_time: 0.8370  data_time: 0.1288  last_data_time: 0.1656   lr: 3.9338e-06  max_mem: 4852M
+2025-02-03 07:16:08,511 ERROR tune_controller.py:1331 -- Trial task failed for trial TorchTrainer_142ef_00000
+Traceback (most recent call last):
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/air/execution/_internal/event_manager.py", line 110, in resolve_future
+    result = ray.get(future)
+             ^^^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/_private/auto_init_hook.py", line 21, in auto_init_wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/_private/client_mode_hook.py", line 103, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/_private/worker.py", line 2630, in get
+    values, debugger_breakpoint = worker.get_objects(object_refs, timeout=timeout)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/_private/worker.py", line 863, in get_objects
+    raise value.as_instanceof_cause()
+ray.exceptions.RayTaskError(FloatingPointError): ray::_Inner.train() (pid=20019, ip=192.168.45.3, actor_id=353a1f32a5efaa86311fdb4d07000000, repr=TorchTrainer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/tune/trainable/trainable.py", line 331, in train
+    raise skipped from exception_cause(skipped)
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/train/_internal/utils.py", line 53, in check_for_failure
+    ray.get(object_ref)
+           ^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ray.exceptions.RayTaskError(FloatingPointError): ray::_RayTrainWorker__execute.get_next() (pid=20184, ip=192.168.45.3, actor_id=9921716b0bbb8209a7c9c94107000000, repr=<ray.train._internal.worker_group.RayTrainWorker object at 0x7fec0c1e2b90>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/train/_internal/worker_group.py", line 33, in __execute
+    raise skipped from exception_cause(skipped)
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/train/_internal/utils.py", line 169, in discard_return_wrapper
+    train_func(*args, **kwargs)
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/working_dir_files/_ray_pkg_253fd3e5e003c9ce/train_detection.py", line 150, in train_detector
+    trainer.train()
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/defaults.py", line 520, in train
+    super().train(self.start_iter, self.max_iter)
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 155, in train
+    self.run_step()
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/defaults.py", line 530, in run_step
+    self._trainer.run_step()
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 332, in run_step
+    self._write_metrics(loss_dict, data_time)
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 370, in _write_metrics
+    SimpleTrainer.write_metrics(loss_dict, data_time, iter, prefix)
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 412, in write_metrics
+    raise FloatingPointError(
+FloatingPointError: Loss became infinite or NaN at iteration=60!
+loss_dict = {'loss_cls': 0.47748449444770813, 'loss_box_reg': 0.026896189898252487, 'loss_rpn_cls': 0.5629274845123291, 'loss_rpn_loc': inf}
+
+Training errored after 0 iterations at 2025-02-03 07:16:08. Total running time: 5min 7s
+Error file: /tmp/ray/session_2025-02-03_06-10-00_940798_8/artifacts/2025-02-03_07-11-01/detectron2_training/driver_artifacts/TorchTrainer_142ef_00000_0_2025-02-03_07-11-01/error.txt
+2025-02-03 07:16:08,526 INFO tune.py:1009 -- Wrote the latest version of all result files and experiment state to '/home/ray/ray_results/detectron2_training' in 0.0058s.
+
+2025-02-03 07:16:08,529 ERROR tune.py:1037 -- Trials did not complete: [TorchTrainer_142ef_00000]
+ray.exceptions.RayTaskError(FloatingPointError): ray::_Inner.train() (pid=20019, ip=192.168.45.3, actor_id=353a1f32a5efaa86311fdb4d07000000, repr=TorchTrainer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/tune/trainable/trainable.py", line 331, in train
+    raise skipped from exception_cause(skipped)
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/train/_internal/utils.py", line 53, in check_for_failure
+    ray.get(object_ref)
+           ^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ray.exceptions.RayTaskError(FloatingPointError): ray::_RayTrainWorker__execute.get_next() (pid=20184, ip=192.168.45.3, actor_id=9921716b0bbb8209a7c9c94107000000, repr=<ray.train._internal.worker_group.RayTrainWorker object at 0x7fec0c1e2b90>)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/train/_internal/worker_group.py", line 33, in __execute
+    raise skipped from exception_cause(skipped)
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/train/_internal/utils.py", line 169, in discard_return_wrapper
+    train_func(*args, **kwargs)
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/working_dir_files/_ray_pkg_253fd3e5e003c9ce/train_detection.py", line 150, in train_detector
+    trainer.train()
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/defaults.py", line 520, in train
+    super().train(self.start_iter, self.max_iter)
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 155, in train
+    self.run_step()
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/defaults.py", line 530, in run_step
+    self._trainer.run_step()
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 332, in run_step
+    self._write_metrics(loss_dict, data_time)
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 370, in _write_metrics
+    SimpleTrainer.write_metrics(loss_dict, data_time, iter, prefix)
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/py_modules_files/detectron2-0.6-cp311-cp311-linux_x86_64/detectron2/engine/train_loop.py", line 412, in write_metrics
+    raise FloatingPointError(
+FloatingPointError: Loss became infinite or NaN at iteration=60!
+loss_dict = {'loss_cls': 0.47748449444770813, 'loss_box_reg': 0.026896189898252487, 'loss_rpn_cls': 0.5629274845123291, 'loss_rpn_loc': inf}
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/working_dir_files/_ray_pkg_253fd3e5e003c9ce/ray_train_detection.py", line 28, in <module>
+    train_on_ray()
+  File "/tmp/ray/session_2025-02-03_06-10-00_940798_8/runtime_resources/working_dir_files/_ray_pkg_253fd3e5e003c9ce/ray_train_detection.py", line 23, in train_on_ray
+    results = trainer.fit()
+              ^^^^^^^^^^^^^
+  File "/home/ray/anaconda3/lib/python3.11/site-packages/ray/train/base_trainer.py", line 638, in fit
+    raise TrainingFailedError(
+ray.train.base_trainer.TrainingFailedError: The Ray Train run failed. Please inspect the previous error messages for a cause. After fixing the issue (assuming that the error is not caused by your own application logic, but rather an error such as OOM), you can restart the run from scratch or continue this run.
+To start a new run that will retry on training failures, set `train.RunConfig(failure_config=train.FailureConfig(max_failures))` in t
